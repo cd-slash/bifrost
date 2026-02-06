@@ -24,6 +24,7 @@ import {
 	Network,
 	PanelLeftClose,
 	Puzzle,
+	Route,
 	ScrollText,
 	Settings,
 	Settings2Icon,
@@ -269,7 +270,7 @@ const SidebarItemView = ({
 				<SidebarMenuSub className="border-sidebar-border mt-1 ml-4 space-y-0.5 border-l pl-2">
 					{item.subItems?.map((subItem: SidebarItem) => {
 						// Hide governance-dependent subitems when governance is disabled
-						if ((subItem.url === "/workspace/model-limits" || subItem.url === "/workspace/routing-rules") && !isGovernanceEnabled) return null;
+						if ((subItem.url === "/workspace/model-limits" || subItem.url === "/workspace/routing-rules" || subItem.url === "/workspace/routing-profiles") && !isGovernanceEnabled) return null;
 						// For query param based subitems, check if tab matches
 						const isSubItemActive = subItem.queryParam ? pathname === subItem.url : pathname.startsWith(subItem.url);
 						const SubItemIcon = subItem.icon;
@@ -440,6 +441,13 @@ export default function AppSidebar() {
 					url: "/workspace/routing-rules",
 					icon: Network,
 					description: "Intelligent routing rules",
+					hasAccess: hasRoutingRulesAccess,
+				},
+				{
+					title: "Routing Profiles",
+					url: "/workspace/routing-profiles",
+					icon: Route,
+					description: "Virtual provider routing",
 					hasAccess: hasRoutingRulesAccess,
 				},
 			],

@@ -36,7 +36,8 @@ const (
 
 // Config is the configuration for the governance plugin
 type Config struct {
-	IsVkMandatory *bool `json:"is_vk_mandatory"`
+	IsVkMandatory   *bool            `json:"is_vk_mandatory"`
+	RoutingProfiles []RoutingProfile `json:"routing_profiles,omitempty"`
 }
 
 type InMemoryStore interface {
@@ -75,7 +76,8 @@ type GovernancePlugin struct {
 	logger       schemas.Logger
 
 	// Transport dependencies
-	inMemoryStore InMemoryStore
+	inMemoryStore   InMemoryStore
+	routingProfiles []RoutingProfile
 
 	isVkMandatory *bool
 }
@@ -193,18 +195,22 @@ func Init(
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	plugin := &GovernancePlugin{
-		ctx:           ctx,
-		cancelFunc:    cancelFunc,
-		store:         governanceStore,
-		resolver:      resolver,
-		tracker:       tracker,
-		engine:        engine,
-		configStore:   configStore,
-		modelCatalog:  modelCatalog,
-		mcpCatalog:    mcpCatalog,
-		logger:        logger,
-		isVkMandatory: isVkMandatory,
-		inMemoryStore: inMemoryStore,
+		ctx:             ctx,
+		cancelFunc:      cancelFunc,
+		store:           governanceStore,
+		resolver:        resolver,
+		tracker:         tracker,
+		engine:          engine,
+		configStore:     configStore,
+		modelCatalog:    modelCatalog,
+		mcpCatalog:      mcpCatalog,
+		logger:          logger,
+		isVkMandatory:   isVkMandatory,
+		inMemoryStore:   inMemoryStore,
+		routingProfiles: governanceConfigFromPlugin(config),
+	}
+	if err := plugin.validateRoutingProfiles(); err != nil {
+		return nil, fmt.Errorf("invalid routing profiles config: %w", err)
 	}
 	return plugin, nil
 }
@@ -273,20 +279,31 @@ func InitFromStore(
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	plugin := &GovernancePlugin{
-		ctx:           ctx,
-		cancelFunc:    cancelFunc,
-		store:         governanceStore,
-		resolver:      resolver,
-		tracker:       tracker,
-		engine:        engine,
-		configStore:   configStore,
-		modelCatalog:  modelCatalog,
-		mcpCatalog:    mcpCatalog,
-		logger:        logger,
-		inMemoryStore: inMemoryStore,
-		isVkMandatory: isVkMandatory,
+		ctx:             ctx,
+		cancelFunc:      cancelFunc,
+		store:           governanceStore,
+		resolver:        resolver,
+		tracker:         tracker,
+		engine:          engine,
+		configStore:     configStore,
+		modelCatalog:    modelCatalog,
+		mcpCatalog:      mcpCatalog,
+		logger:          logger,
+		inMemoryStore:   inMemoryStore,
+		isVkMandatory:   isVkMandatory,
+		routingProfiles: governanceConfigFromPlugin(config),
+	}
+	if err := plugin.validateRoutingProfiles(); err != nil {
+		return nil, fmt.Errorf("invalid routing profiles config: %w", err)
 	}
 	return plugin, nil
+}
+
+func governanceConfigFromPlugin(config *Config) []RoutingProfile {
+	if config == nil {
+		return nil
+	}
+	return config.RoutingProfiles
 }
 
 // GetName returns the name of the plugin
@@ -300,9 +317,10 @@ func (p *GovernancePlugin) GetName() string {
 func (p *GovernancePlugin) HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
 	virtualKeyValue := parseVirtualKeyFromHTTPRequest(req)
 	hasRoutingRules := p.store.HasRoutingRules(ctx)
+	hasRoutingProfiles := len(p.getRoutingProfiles()) > 0
 
-	// If no virtual key and no routing rules configured, skip all processing
-	if virtualKeyValue == nil && !hasRoutingRules {
+	// If no virtual key, no routing rules, and no routing profiles configured, skip all processing
+	if virtualKeyValue == nil && !hasRoutingRules && !hasRoutingProfiles {
 		return nil, nil
 	}
 
@@ -341,6 +359,17 @@ func (p *GovernancePlugin) HTTPTransportPreHook(ctx *schemas.BifrostContext, req
 		}
 		// Mark for marshal if a routing rule matched
 		if routingDecision != nil {
+			needsMarshal = true
+		}
+	}
+
+	if routingDecision == nil {
+		var profileMatched bool
+		payload, profileMatched, err = p.applyRoutingProfiles(ctx, req, payload, virtualKey)
+		if err != nil {
+			return nil, err
+		}
+		if profileMatched {
 			needsMarshal = true
 		}
 	}
