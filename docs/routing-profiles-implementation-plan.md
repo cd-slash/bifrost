@@ -86,3 +86,42 @@ Resolution order:
 3. [ ] Add tests for alias resolution (`fast/model`) and failover chain generation.
 4. [ ] Add basic API/types scaffolding for future UI integration.
 5. [ ] Start UI slice with read-only list page wired to placeholder endpoint.
+
+## Phase 1 Config Shape (Current)
+
+```json
+{
+  "name": "governance",
+  "enabled": true,
+  "config": {
+    "is_vk_mandatory": false,
+    "routing_profiles": [
+      {
+        "name": "Fast Provider Alias",
+        "virtual_provider": "fast",
+        "enabled": true,
+        "strategy": "ordered_failover",
+        "targets": [
+          { "provider": "cerebras", "priority": 1, "enabled": true },
+          { "provider": "openai", "priority": 2, "enabled": true }
+        ]
+      },
+      {
+        "name": "Light Model Alias",
+        "virtual_provider": "light",
+        "enabled": true,
+        "strategy": "ordered_failover",
+        "targets": [
+          { "provider": "cerebras", "virtual_model": "light", "model": "glm-4.7-flash", "priority": 1, "enabled": true },
+          { "provider": "anthropic", "virtual_model": "light", "model": "claude-3-5-haiku-latest", "priority": 2, "enabled": true }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Behavior:
+
+- `fast/glm-4.7` routes by virtual provider and preserves model unless target overrides model.
+- `light/light` routes by virtual provider (`light`) and virtual model (`light`) to concrete models per target.

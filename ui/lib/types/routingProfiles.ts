@@ -8,6 +8,7 @@ export interface RoutingProfileRateHint {
 
 export interface RoutingProfileTarget {
 	provider: string;
+	virtual_model?: string;
 	model?: string;
 	priority?: number;
 	weight?: number;

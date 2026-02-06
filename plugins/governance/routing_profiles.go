@@ -29,6 +29,7 @@ type RoutingProfile struct {
 
 type RoutingProfileTarget struct {
 	Provider     string    `json:"provider"`
+	VirtualModel string    `json:"virtual_model,omitempty"`
 	Model        string    `json:"model,omitempty"`
 	Priority     int       `json:"priority,omitempty"`
 	Weight       *float64  `json:"weight,omitempty"`
@@ -157,6 +158,9 @@ func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profil
 		if !target.Enabled || target.Provider == "" {
 			continue
 		}
+		if !matchesVirtualModel(target.VirtualModel, baseModel) {
+			continue
+		}
 		if len(target.RequestTypes) > 0 && requestType != "" && !containsFold(target.RequestTypes, requestType) {
 			continue
 		}
@@ -268,6 +272,16 @@ func withinThreshold(percent float64, hint *RateHint, metric string) bool {
 	return percent < *threshold
 }
 
+func matchesVirtualModel(targetVirtualModel string, requestedVirtualModel string) bool {
+	if strings.TrimSpace(targetVirtualModel) == "" {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(targetVirtualModel), "*") {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(targetVirtualModel), strings.TrimSpace(requestedVirtualModel))
+}
+
 func (p *GovernancePlugin) validateRoutingProfiles() error {
 	for _, profile := range p.routingProfiles {
 		if strings.TrimSpace(profile.Name) == "" {
@@ -278,6 +292,11 @@ func (p *GovernancePlugin) validateRoutingProfiles() error {
 		}
 		if len(profile.Targets) == 0 {
 			return fmt.Errorf("routing profile %s must define at least one target", profile.Name)
+		}
+		for _, target := range profile.Targets {
+			if strings.TrimSpace(target.VirtualModel) != "" && strings.TrimSpace(target.Model) == "" {
+				return fmt.Errorf("routing profile %s target for virtual_model %s must define model", profile.Name, target.VirtualModel)
+			}
 		}
 	}
 	return nil
