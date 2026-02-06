@@ -283,20 +283,52 @@ func matchesVirtualModel(targetVirtualModel string, requestedVirtualModel string
 }
 
 func (p *GovernancePlugin) validateRoutingProfiles() error {
+	seenVirtualProviders := map[string]struct{}{}
+	realProviders := map[string]struct{}{}
+	if p.inMemoryStore != nil {
+		for provider := range p.inMemoryStore.GetConfiguredProviders() {
+			realProviders[strings.ToLower(strings.TrimSpace(string(provider)))] = struct{}{}
+		}
+	}
+
 	for _, profile := range p.routingProfiles {
 		if strings.TrimSpace(profile.Name) == "" {
 			return fmt.Errorf("routing profile name is required")
 		}
-		if strings.TrimSpace(profile.VirtualProvider) == "" {
+		virtualProvider := strings.ToLower(strings.TrimSpace(profile.VirtualProvider))
+		if virtualProvider == "" {
 			return fmt.Errorf("routing profile %s virtual_provider is required", profile.Name)
 		}
+		if virtualProvider == "*" {
+			return fmt.Errorf("routing profile %s virtual_provider '*' is reserved", profile.Name)
+		}
+		if _, exists := realProviders[virtualProvider]; exists {
+			return fmt.Errorf("routing profile %s virtual_provider %s conflicts with a configured real provider", profile.Name, profile.VirtualProvider)
+		}
+		if _, exists := seenVirtualProviders[virtualProvider]; exists {
+			return fmt.Errorf("routing profile virtual_provider %s must be unique", profile.VirtualProvider)
+		}
+		seenVirtualProviders[virtualProvider] = struct{}{}
+
 		if len(profile.Targets) == 0 {
 			return fmt.Errorf("routing profile %s must define at least one target", profile.Name)
 		}
+
+		hasWildcardVirtualModel := false
+		hasNamedVirtualModel := false
 		for _, target := range profile.Targets {
 			if strings.TrimSpace(target.VirtualModel) != "" && strings.TrimSpace(target.Model) == "" {
 				return fmt.Errorf("routing profile %s target for virtual_model %s must define model", profile.Name, target.VirtualModel)
 			}
+			if strings.EqualFold(strings.TrimSpace(target.VirtualModel), "*") {
+				hasWildcardVirtualModel = true
+			}
+			if vm := strings.TrimSpace(target.VirtualModel); vm != "" && vm != "*" {
+				hasNamedVirtualModel = true
+			}
+		}
+		if hasWildcardVirtualModel && hasNamedVirtualModel {
+			return fmt.Errorf("routing profile %s mixes wildcard virtual_model '*' with named virtual models", profile.Name)
 		}
 	}
 	return nil
