@@ -250,6 +250,9 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 
 	// Routing Profiles (phase-1 scaffold: read-only endpoint)
 	r.GET("/api/governance/routing-profiles", lib.ChainMiddlewares(h.getRoutingProfiles, middlewares...))
+	r.POST("/api/governance/routing-profiles", lib.ChainMiddlewares(h.createRoutingProfile, middlewares...))
+	r.PUT("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.updateRoutingProfile, middlewares...))
+	r.DELETE("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.deleteRoutingProfile, middlewares...))
 
 	// Model Config CRUD operations
 	r.GET("/api/governance/model-configs", lib.ChainMiddlewares(h.getModelConfigs, middlewares...))
@@ -266,40 +269,248 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 
 // getRoutingProfiles returns routing profiles.
 func (h *GovernanceHandler) getRoutingProfiles(ctx *fasthttp.RequestCtx) {
-	plugins, err := h.configStore.GetPlugins(ctx)
+	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
 	if err != nil {
-		SendError(ctx, 500, "Failed to get plugins config")
+		SendError(ctx, 500, err.Error())
+		return
+	}
+	SendJSON(ctx, map[string]any{"profiles": profiles, "count": len(profiles)})
+}
+
+func (h *GovernanceHandler) createRoutingProfile(ctx *fasthttp.RequestCtx) {
+	var profile map[string]any
+	if err := sonic.Unmarshal(ctx.PostBody(), &profile); err != nil {
+		SendError(ctx, fasthttp.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
-	profiles := make([]map[string]any, 0)
-	for _, plugin := range plugins {
-		if plugin == nil || plugin.Name != governance.PluginName || !plugin.Enabled || plugin.Config == nil {
+	if profile["id"] == nil || strings.TrimSpace(fmt.Sprint(profile["id"])) == "" {
+		profile["id"] = uuid.NewString()
+	}
+
+	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
+	if err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+	profiles = append(profiles, profile)
+
+	if err := h.validateRoutingProfilesForConflicts(ctx, profiles); err != nil {
+		SendError(ctx, fasthttp.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := h.writeRoutingProfilesToGovernancePluginConfig(ctx, profiles); err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	ctx.SetStatusCode(fasthttp.StatusCreated)
+	SendJSON(ctx, map[string]any{
+		"message": "Routing profile created. Restart may be required for plugin reload.",
+		"profile": profile,
+	})
+}
+
+func (h *GovernanceHandler) updateRoutingProfile(ctx *fasthttp.RequestCtx) {
+	profileID := strings.TrimSpace(fmt.Sprint(ctx.UserValue("profile_id")))
+	if profileID == "" {
+		SendError(ctx, fasthttp.StatusBadRequest, "Missing profile_id")
+		return
+	}
+
+	var update map[string]any
+	if err := sonic.Unmarshal(ctx.PostBody(), &update); err != nil {
+		SendError(ctx, fasthttp.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
+	if err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	updated := false
+	for i := range profiles {
+		if strings.TrimSpace(fmt.Sprint(profiles[i]["id"])) != profileID {
 			continue
 		}
-
-		payload, err := sonic.Marshal(plugin.Config)
-		if err != nil {
-			continue
+		for key, value := range update {
+			if key == "id" {
+				continue
+			}
+			profiles[i][key] = value
 		}
-
-		var parsed struct {
-			RoutingProfiles []map[string]any `json:"routing_profiles"`
-		}
-		if err := sonic.Unmarshal(payload, &parsed); err != nil {
-			continue
-		}
-
-		if len(parsed.RoutingProfiles) > 0 {
-			profiles = parsed.RoutingProfiles
-		}
+		profiles[i]["id"] = profileID
+		updated = true
 		break
 	}
 
-	SendJSON(ctx, map[string]any{
-		"profiles": profiles,
-		"count":    len(profiles),
-	})
+	if !updated {
+		SendError(ctx, fasthttp.StatusNotFound, "Routing profile not found")
+		return
+	}
+
+	if err := h.validateRoutingProfilesForConflicts(ctx, profiles); err != nil {
+		SendError(ctx, fasthttp.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := h.writeRoutingProfilesToGovernancePluginConfig(ctx, profiles); err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	SendJSON(ctx, map[string]any{"message": "Routing profile updated. Restart may be required for plugin reload."})
+}
+
+func (h *GovernanceHandler) deleteRoutingProfile(ctx *fasthttp.RequestCtx) {
+	profileID := strings.TrimSpace(fmt.Sprint(ctx.UserValue("profile_id")))
+	if profileID == "" {
+		SendError(ctx, fasthttp.StatusBadRequest, "Missing profile_id")
+		return
+	}
+
+	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
+	if err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	filtered := make([]map[string]any, 0, len(profiles))
+	deleted := false
+	for _, profile := range profiles {
+		if strings.TrimSpace(fmt.Sprint(profile["id"])) == profileID {
+			deleted = true
+			continue
+		}
+		filtered = append(filtered, profile)
+	}
+
+	if !deleted {
+		SendError(ctx, fasthttp.StatusNotFound, "Routing profile not found")
+		return
+	}
+
+	if err := h.writeRoutingProfilesToGovernancePluginConfig(ctx, filtered); err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	SendJSON(ctx, map[string]any{"message": "Routing profile deleted. Restart may be required for plugin reload."})
+}
+
+func (h *GovernanceHandler) readRoutingProfilesFromGovernancePluginConfig(ctx context.Context) ([]map[string]any, error) {
+	plugin, err := h.configStore.GetPlugin(ctx, governance.PluginName)
+	if err != nil {
+		if errors.Is(err, configstore.ErrNotFound) {
+			return []map[string]any{}, nil
+		}
+		return nil, fmt.Errorf("failed to get governance plugin config: %w", err)
+	}
+
+	if plugin == nil || plugin.Config == nil {
+		return []map[string]any{}, nil
+	}
+
+	payload, err := sonic.Marshal(plugin.Config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse governance plugin config: %w", err)
+	}
+
+	var parsed struct {
+		RoutingProfiles []map[string]any `json:"routing_profiles"`
+	}
+	if err := sonic.Unmarshal(payload, &parsed); err != nil {
+		return nil, fmt.Errorf("failed to decode governance routing profiles: %w", err)
+	}
+
+	if parsed.RoutingProfiles == nil {
+		return []map[string]any{}, nil
+	}
+	return parsed.RoutingProfiles, nil
+}
+
+func (h *GovernanceHandler) writeRoutingProfilesToGovernancePluginConfig(ctx context.Context, profiles []map[string]any) error {
+	plugin, err := h.configStore.GetPlugin(ctx, governance.PluginName)
+	if err != nil && !errors.Is(err, configstore.ErrNotFound) {
+		return fmt.Errorf("failed to load governance plugin config: %w", err)
+	}
+
+	pluginConfig := map[string]any{}
+	enabled := true
+	path := (*string)(nil)
+	isCustom := false
+	if plugin != nil {
+		if existing, ok := plugin.Config.(map[string]any); ok && existing != nil {
+			for k, v := range existing {
+				pluginConfig[k] = v
+			}
+		}
+		enabled = plugin.Enabled
+		path = plugin.Path
+		isCustom = plugin.IsCustom
+	}
+
+	pluginConfig["routing_profiles"] = profiles
+
+	if plugin == nil {
+		createErr := h.configStore.CreatePlugin(ctx, &configstoreTables.TablePlugin{
+			Name:     governance.PluginName,
+			Enabled:  enabled,
+			Config:   pluginConfig,
+			Path:     path,
+			IsCustom: isCustom,
+		})
+		if createErr != nil {
+			return fmt.Errorf("failed to create governance plugin config: %w", createErr)
+		}
+		return nil
+	}
+
+	if err := h.configStore.UpdatePlugin(ctx, &configstoreTables.TablePlugin{
+		Name:     governance.PluginName,
+		Enabled:  enabled,
+		Config:   pluginConfig,
+		Path:     path,
+		IsCustom: isCustom,
+	}); err != nil {
+		return fmt.Errorf("failed to update governance plugin config: %w", err)
+	}
+
+	return nil
+}
+
+func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Context, profiles []map[string]any) error {
+	providers, err := h.configStore.GetProviders(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load providers for routing profile validation: %w", err)
+	}
+	realProviders := map[string]struct{}{}
+	for _, provider := range providers {
+		realProviders[strings.ToLower(strings.TrimSpace(provider.Name))] = struct{}{}
+	}
+
+	seenVirtualProviders := map[string]struct{}{}
+	for _, profile := range profiles {
+		virtualProvider := strings.ToLower(strings.TrimSpace(fmt.Sprint(profile["virtual_provider"])))
+		if virtualProvider == "" {
+			return fmt.Errorf("routing profile virtual_provider is required")
+		}
+		if virtualProvider == "*" {
+			return fmt.Errorf("virtual_provider '*' is reserved")
+		}
+		if _, exists := realProviders[virtualProvider]; exists {
+			return fmt.Errorf("virtual_provider %q conflicts with a configured real provider", virtualProvider)
+		}
+		if _, exists := seenVirtualProviders[virtualProvider]; exists {
+			return fmt.Errorf("virtual_provider %q must be unique", virtualProvider)
+		}
+		seenVirtualProviders[virtualProvider] = struct{}{}
+	}
+
+	return nil
 }
 
 // Virtual Key CRUD Operations
