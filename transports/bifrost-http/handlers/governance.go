@@ -508,6 +508,30 @@ func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Cont
 			return fmt.Errorf("virtual_provider %q must be unique", virtualProvider)
 		}
 		seenVirtualProviders[virtualProvider] = struct{}{}
+
+		targetsRaw, _ := profile["targets"].([]any)
+		hasWildcardVirtualModel := false
+		hasNamedVirtualModel := false
+		for _, targetAny := range targetsRaw {
+			target, ok := targetAny.(map[string]any)
+			if !ok {
+				continue
+			}
+			virtualModel := strings.TrimSpace(fmt.Sprint(target["virtual_model"]))
+			model := strings.TrimSpace(fmt.Sprint(target["model"]))
+			if virtualModel != "" && virtualModel != "<nil>" && model == "" {
+				return fmt.Errorf("target virtual_model %q requires concrete model", virtualModel)
+			}
+			if strings.EqualFold(virtualModel, "*") {
+				hasWildcardVirtualModel = true
+			}
+			if virtualModel != "" && virtualModel != "<nil>" && virtualModel != "*" {
+				hasNamedVirtualModel = true
+			}
+		}
+		if hasWildcardVirtualModel && hasNamedVirtualModel {
+			return fmt.Errorf("profile %q mixes wildcard virtual_model '*' with named aliases", virtualProvider)
+		}
 	}
 
 	return nil
