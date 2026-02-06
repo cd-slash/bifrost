@@ -125,6 +125,13 @@ type ConfigStore interface {
 	UpdateRoutingRule(ctx context.Context, rule *tables.TableRoutingRule, tx ...*gorm.DB) error
 	DeleteRoutingRule(ctx context.Context, id string, tx ...*gorm.DB) error
 
+	// Routing Profiles CRUD
+	GetRoutingProfiles(ctx context.Context) ([]tables.TableRoutingProfile, error)
+	GetRoutingProfile(ctx context.Context, id string) (*tables.TableRoutingProfile, error)
+	CreateRoutingProfile(ctx context.Context, profile *tables.TableRoutingProfile, tx ...*gorm.DB) error
+	UpdateRoutingProfile(ctx context.Context, profile *tables.TableRoutingProfile, tx ...*gorm.DB) error
+	DeleteRoutingProfile(ctx context.Context, id string, tx ...*gorm.DB) error
+
 	// Model config CRUD
 	GetModelConfigs(ctx context.Context) ([]tables.TableModelConfig, error)
 	GetModelConfig(ctx context.Context, modelName string, provider *string) (*tables.TableModelConfig, error)

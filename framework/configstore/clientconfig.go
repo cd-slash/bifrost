@@ -951,21 +951,22 @@ func GeneratePluginHash(p tables.TablePlugin) (string, error) {
 type AuthConfig struct {
 	AdminUserName          *schemas.EnvVar `json:"admin_username"`
 	AdminPassword          *schemas.EnvVar `json:"admin_password"`
-	IsEnabled              bool           `json:"is_enabled"`
-	DisableAuthOnInference bool           `json:"disable_auth_on_inference"`
+	IsEnabled              bool            `json:"is_enabled"`
+	DisableAuthOnInference bool            `json:"disable_auth_on_inference"`
 }
 
 // ConfigMap maps provider names to their configurations.
 type ConfigMap map[schemas.ModelProvider]ProviderConfig
 
 type GovernanceConfig struct {
-	VirtualKeys  []tables.TableVirtualKey  `json:"virtual_keys"`
-	Teams        []tables.TableTeam        `json:"teams"`
-	Customers    []tables.TableCustomer    `json:"customers"`
-	Budgets      []tables.TableBudget      `json:"budgets"`
-	RateLimits   []tables.TableRateLimit   `json:"rate_limits"`
-	ModelConfigs []tables.TableModelConfig `json:"model_configs"`
-	Providers    []tables.TableProvider    `json:"providers"`
-	RoutingRules []tables.TableRoutingRule `json:"routing_rules"`
-	AuthConfig   *AuthConfig               `json:"auth_config,omitempty"`
+	VirtualKeys     []tables.TableVirtualKey     `json:"virtual_keys"`
+	Teams           []tables.TableTeam           `json:"teams"`
+	Customers       []tables.TableCustomer       `json:"customers"`
+	Budgets         []tables.TableBudget         `json:"budgets"`
+	RateLimits      []tables.TableRateLimit      `json:"rate_limits"`
+	ModelConfigs    []tables.TableModelConfig    `json:"model_configs"`
+	Providers       []tables.TableProvider       `json:"providers"`
+	RoutingRules    []tables.TableRoutingRule    `json:"routing_rules"`
+	RoutingProfiles []tables.TableRoutingProfile `json:"routing_profiles"`
+	AuthConfig      *AuthConfig                  `json:"auth_config,omitempty"`
 }

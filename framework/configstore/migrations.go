@@ -176,6 +176,9 @@ func triggerMigrations(ctx context.Context, db *gorm.DB) error {
 	if err := migrationAddRoutingRulesTable(ctx, db); err != nil {
 		return err
 	}
+	if err := migrationAddRoutingProfilesTable(ctx, db); err != nil {
+		return err
+	}
 	if err := migrationAddBaseModelPricingColumn(ctx, db); err != nil {
 		return err
 	}
@@ -3057,13 +3060,47 @@ func migrationAddRoutingRulesTable(ctx context.Context, db *gorm.DB) error {
 	return nil
 }
 
+// migrationAddRoutingProfilesTable adds the routing profiles table for virtual provider/model routing.
+func migrationAddRoutingProfilesTable(ctx context.Context, db *gorm.DB) error {
+	m := migrator.New(db, migrator.DefaultOptions, []*migrator.Migration{{
+		ID: "add_routing_profiles_table",
+		Migrate: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			migrator := tx.Migrator()
+
+			if !migrator.HasTable(&tables.TableRoutingProfile{}) {
+				if err := migrator.CreateTable(&tables.TableRoutingProfile{}); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+		Rollback: func(tx *gorm.DB) error {
+			tx = tx.WithContext(ctx)
+			migrator := tx.Migrator()
+
+			if err := migrator.DropTable(&tables.TableRoutingProfile{}); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}})
+	err := m.Migrate()
+	if err != nil {
+		return fmt.Errorf("error while running routing_profiles_table migration: %s", err.Error())
+	}
+	return nil
+}
+
 // migrationAddOAuthTables creates the oauth_configs and oauth_tokens tables
 func migrationAddOAuthTables(ctx context.Context, db *gorm.DB) error {
 	m := migrator.New(db, migrator.DefaultOptions, []*migrator.Migration{{
 		ID: "add_oauth_tables",
 		Migrate: func(tx *gorm.DB) error {
 			tx = tx.WithContext(ctx)
-			migrator := tx.Migrator()			
+			migrator := tx.Migrator()
 			// Create oauth_configs table FIRST (before adding FK columns that reference it)
 			if !migrator.HasTable(&tables.TableOauthConfig{}) {
 				if err := migrator.CreateTable(&tables.TableOauthConfig{}); err != nil {

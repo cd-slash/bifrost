@@ -2311,6 +2311,70 @@ func (s *RDBConfigStore) DeleteRoutingRule(ctx context.Context, id string, tx ..
 	return nil
 }
 
+// GetRoutingProfiles retrieves all routing profiles from the database.
+func (s *RDBConfigStore) GetRoutingProfiles(ctx context.Context) ([]tables.TableRoutingProfile, error) {
+	var profiles []tables.TableRoutingProfile
+	if err := s.db.WithContext(ctx).Order("virtual_provider ASC, created_at DESC").Find(&profiles).Error; err != nil {
+		return nil, err
+	}
+	return profiles, nil
+}
+
+// GetRoutingProfile retrieves a specific routing profile by ID.
+func (s *RDBConfigStore) GetRoutingProfile(ctx context.Context, id string) (*tables.TableRoutingProfile, error) {
+	var profile tables.TableRoutingProfile
+	if err := s.db.WithContext(ctx).Where("id = ?", id).First(&profile).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &profile, nil
+}
+
+// CreateRoutingProfile creates a new routing profile in the database.
+func (s *RDBConfigStore) CreateRoutingProfile(ctx context.Context, profile *tables.TableRoutingProfile, tx ...*gorm.DB) error {
+	database := s.db
+	if len(tx) > 0 && tx[0] != nil {
+		database = tx[0]
+	}
+
+	if err := database.WithContext(ctx).Create(profile).Error; err != nil {
+		return s.parseGormError(err)
+	}
+	return nil
+}
+
+// UpdateRoutingProfile updates an existing routing profile in the database.
+func (s *RDBConfigStore) UpdateRoutingProfile(ctx context.Context, profile *tables.TableRoutingProfile, tx ...*gorm.DB) error {
+	database := s.db
+	if len(tx) > 0 && tx[0] != nil {
+		database = tx[0]
+	}
+
+	if err := database.WithContext(ctx).Save(profile).Error; err != nil {
+		return s.parseGormError(err)
+	}
+	return nil
+}
+
+// DeleteRoutingProfile deletes a routing profile from the database.
+func (s *RDBConfigStore) DeleteRoutingProfile(ctx context.Context, id string, tx ...*gorm.DB) error {
+	database := s.db
+	if len(tx) > 0 && tx[0] != nil {
+		database = tx[0]
+	}
+
+	result := database.WithContext(ctx).Delete(&tables.TableRoutingProfile{}, "id = ?", id)
+	if result.Error != nil {
+		return s.parseGormError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // GetModelConfigs retrieves all model configs from the database.
 func (s *RDBConfigStore) GetModelConfigs(ctx context.Context) ([]tables.TableModelConfig, error) {
 	var modelConfigs []tables.TableModelConfig
@@ -2441,6 +2505,7 @@ func (s *RDBConfigStore) GetGovernanceConfig(ctx context.Context) (*GovernanceCo
 	var modelConfigs []tables.TableModelConfig
 	var providers []tables.TableProvider
 	var routingRules []tables.TableRoutingRule
+	var routingProfiles []tables.TableRoutingProfile
 	var governanceConfigs []tables.TableGovernanceConfig
 
 	if err := s.db.WithContext(ctx).
@@ -2472,12 +2537,15 @@ func (s *RDBConfigStore) GetGovernanceConfig(ctx context.Context) (*GovernanceCo
 	if err := s.db.WithContext(ctx).Find(&routingRules).Error; err != nil {
 		return nil, err
 	}
+	if err := s.db.WithContext(ctx).Find(&routingProfiles).Error; err != nil {
+		return nil, err
+	}
 	// Fetching governance config for username and password
 	if err := s.db.WithContext(ctx).Find(&governanceConfigs).Error; err != nil {
 		return nil, err
 	}
 	// Check if any config is present
-	if len(virtualKeys) == 0 && len(teams) == 0 && len(customers) == 0 && len(budgets) == 0 && len(rateLimits) == 0 && len(modelConfigs) == 0 && len(providers) == 0 && len(governanceConfigs) == 0 && len(routingRules) == 0 {
+	if len(virtualKeys) == 0 && len(teams) == 0 && len(customers) == 0 && len(budgets) == 0 && len(rateLimits) == 0 && len(modelConfigs) == 0 && len(providers) == 0 && len(governanceConfigs) == 0 && len(routingRules) == 0 && len(routingProfiles) == 0 {
 		return nil, nil
 	}
 	var authConfig *AuthConfig
@@ -2509,15 +2577,16 @@ func (s *RDBConfigStore) GetGovernanceConfig(ctx context.Context) (*GovernanceCo
 		}
 	}
 	return &GovernanceConfig{
-		VirtualKeys:  virtualKeys,
-		Teams:        teams,
-		Customers:    customers,
-		Budgets:      budgets,
-		RateLimits:   rateLimits,
-		ModelConfigs: modelConfigs,
-		Providers:    providers,
-		RoutingRules: routingRules,
-		AuthConfig:   authConfig,
+		VirtualKeys:     virtualKeys,
+		Teams:           teams,
+		Customers:       customers,
+		Budgets:         budgets,
+		RateLimits:      rateLimits,
+		ModelConfigs:    modelConfigs,
+		Providers:       providers,
+		RoutingRules:    routingRules,
+		RoutingProfiles: routingProfiles,
+		AuthConfig:      authConfig,
 	}, nil
 }
 
