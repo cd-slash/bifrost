@@ -248,6 +248,9 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 	r.PUT("/api/governance/routing-rules/{rule_id}", lib.ChainMiddlewares(h.updateRoutingRule, middlewares...))
 	r.DELETE("/api/governance/routing-rules/{rule_id}", lib.ChainMiddlewares(h.deleteRoutingRule, middlewares...))
 
+	// Routing Profiles (phase-1 scaffold: read-only endpoint)
+	r.GET("/api/governance/routing-profiles", lib.ChainMiddlewares(h.getRoutingProfiles, middlewares...))
+
 	// Model Config CRUD operations
 	r.GET("/api/governance/model-configs", lib.ChainMiddlewares(h.getModelConfigs, middlewares...))
 	r.POST("/api/governance/model-configs", lib.ChainMiddlewares(h.createModelConfig, middlewares...))
@@ -259,6 +262,15 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 	r.GET("/api/governance/providers", lib.ChainMiddlewares(h.getProviderGovernance, middlewares...))
 	r.PUT("/api/governance/providers/{provider_name}", lib.ChainMiddlewares(h.updateProviderGovernance, middlewares...))
 	r.DELETE("/api/governance/providers/{provider_name}", lib.ChainMiddlewares(h.deleteProviderGovernance, middlewares...))
+}
+
+// getRoutingProfiles returns routing profiles.
+// Phase-1 scaffold: persistence and CRUD are introduced in later phases.
+func (h *GovernanceHandler) getRoutingProfiles(ctx *fasthttp.RequestCtx) {
+	SendJSON(ctx, map[string]any{
+		"profiles": []any{},
+		"count":    0,
+	})
 }
 
 // Virtual Key CRUD Operations
