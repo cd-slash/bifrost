@@ -409,23 +409,19 @@ func (h *GovernanceHandler) readRoutingProfilesFromGovernancePluginConfig(ctx co
 		}
 		return nil, fmt.Errorf("failed to get governance plugin config: %w", err)
 	}
-
 	if plugin == nil || plugin.Config == nil {
 		return []map[string]any{}, nil
 	}
-
 	payload, err := sonic.Marshal(plugin.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse governance plugin config: %w", err)
 	}
-
 	var parsed struct {
 		RoutingProfiles []map[string]any `json:"routing_profiles"`
 	}
 	if err := sonic.Unmarshal(payload, &parsed); err != nil {
 		return nil, fmt.Errorf("failed to decode governance routing profiles: %w", err)
 	}
-
 	if parsed.RoutingProfiles == nil {
 		return []map[string]any{}, nil
 	}
