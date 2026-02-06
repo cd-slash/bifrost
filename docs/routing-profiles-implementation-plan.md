@@ -59,6 +59,11 @@ Resolution order:
 2. Add ConfigStore CRUD methods.
 3. Add governance HTTP handlers for profile CRUD.
 4. Add in-memory reload hooks from server manager.
+5. Add namespace hardening and uniqueness constraints:
+   - prevent virtual provider overlap with configured real provider names
+   - enforce unique virtual provider names across profiles (case-insensitive)
+   - enforce unique virtual model names within each virtual provider scope (case-insensitive)
+   - reserve wildcard tokens (for example `*`) to avoid ambiguous model alias semantics
 
 ### Phase 3 (UI)
 
@@ -72,6 +77,12 @@ Resolution order:
 1. End-to-end tests for OpenAI-compatible routes and fallback behavior.
 2. Metrics + logs for profile hit-rate and target rejection reasons.
 3. Backward-compatibility tests with existing routing rules.
+
+## UI Cleanup Track
+
+1. Remove intrusive premium/enterprise marketing copy from OSS fallback pages.
+2. Replace upsell-oriented messages with neutral feature-availability text.
+3. Ensure unavailable enterprise sections fail quietly without disruptive banners.
 
 ## Non-Goals for Initial MVP
 

@@ -265,11 +265,40 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 }
 
 // getRoutingProfiles returns routing profiles.
-// Phase-1 scaffold: persistence and CRUD are introduced in later phases.
 func (h *GovernanceHandler) getRoutingProfiles(ctx *fasthttp.RequestCtx) {
+	plugins, err := h.configStore.GetPlugins(ctx)
+	if err != nil {
+		SendError(ctx, 500, "Failed to get plugins config")
+		return
+	}
+
+	profiles := make([]map[string]any, 0)
+	for _, plugin := range plugins {
+		if plugin == nil || plugin.Name != governance.PluginName || !plugin.Enabled || plugin.Config == nil {
+			continue
+		}
+
+		payload, err := sonic.Marshal(plugin.Config)
+		if err != nil {
+			continue
+		}
+
+		var parsed struct {
+			RoutingProfiles []map[string]any `json:"routing_profiles"`
+		}
+		if err := sonic.Unmarshal(payload, &parsed); err != nil {
+			continue
+		}
+
+		if len(parsed.RoutingProfiles) > 0 {
+			profiles = parsed.RoutingProfiles
+		}
+		break
+	}
+
 	SendJSON(ctx, map[string]any{
-		"profiles": []any{},
-		"count":    0,
+		"profiles": profiles,
+		"count":    len(profiles),
 	})
 }
 

@@ -46,6 +46,7 @@ type InMemoryStore interface {
 
 type BaseGovernancePlugin interface {
 	GetName() string
+	GetRoutingProfiles() []RoutingProfile
 	HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error)
 	HTTPTransportPostHook(ctx *schemas.BifrostContext, req *schemas.HTTPRequest, resp *schemas.HTTPResponse) error
 	PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error)
@@ -309,6 +310,13 @@ func governanceConfigFromPlugin(config *Config) []RoutingProfile {
 // GetName returns the name of the plugin
 func (p *GovernancePlugin) GetName() string {
 	return PluginName
+}
+
+func (p *GovernancePlugin) GetRoutingProfiles() []RoutingProfile {
+	if len(p.routingProfiles) == 0 {
+		return nil
+	}
+	return slices.Clone(p.routingProfiles)
 }
 
 // HTTPTransportPreHook intercepts requests before they are processed (governance decision point)
