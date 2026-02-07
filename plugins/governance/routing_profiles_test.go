@@ -1,16 +1,35 @@
 package governance
 
 import (
+	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/bytedance/sonic"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/framework/configstore"
+	configstoreTables "github.com/maximhq/bifrost/framework/configstore/tables"
 )
 
 type testInMemoryStore struct {
 	providers map[schemas.ModelProvider]configstore.ProviderConfig
+}
+
+type testGovernanceStore struct {
+	GovernanceStore
+}
+
+func (t *testGovernanceStore) GetBudgetAndRateLimitStatus(
+	ctx context.Context,
+	model string,
+	provider schemas.ModelProvider,
+	vk *configstoreTables.TableVirtualKey,
+	budgetBaselines map[string]float64,
+	tokenBaselines map[string]int64,
+	requestBaselines map[string]int64,
+) *BudgetAndRateLimitStatus {
+	return &BudgetAndRateLimitStatus{}
 }
 
 func (t *testInMemoryStore) GetConfiguredProviders() map[schemas.ModelProvider]configstore.ProviderConfig {
@@ -318,6 +337,52 @@ func TestSimulateRoutingProfileDecisionErrorsOnInvalidModel(t *testing.T) {
 
 	if _, err := SimulateRoutingProfileDecision(nil, "invalid", "chat", nil); err == nil {
 		t.Fatalf("expected error for invalid model format")
+	}
+}
+
+func TestSimulationParityWithApplyRoutingProfiles(t *testing.T) {
+	t.Parallel()
+
+	profiles := []RoutingProfile{{
+		Name:            "Light",
+		VirtualProvider: "light",
+		Enabled:         true,
+		Strategy:        RoutingProfileStrategyOrdered,
+		Targets: []RoutingProfileTarget{
+			{Provider: "anthropic", VirtualModel: "light", Model: "claude-3-5-haiku-latest", Priority: 1, Enabled: true},
+			{Provider: "cerebras", VirtualModel: "light", Model: "glm-4.7-flash", Priority: 2, Enabled: true},
+		},
+	}}
+
+	plugin := &GovernancePlugin{
+		store:           &testGovernanceStore{},
+		inMemoryStore:   &testInMemoryStore{providers: map[schemas.ModelProvider]configstore.ProviderConfig{"anthropic": {}, "cerebras": {}}},
+		routingProfiles: profiles,
+	}
+
+	ctx := schemas.NewBifrostContext(context.Background(), time.Now().Add(1*time.Minute))
+	req := &schemas.HTTPRequest{Path: "/v1/chat/completions"}
+	body := map[string]any{"model": "light/light"}
+
+	out, matched, err := plugin.applyRoutingProfiles(ctx, req, body, nil)
+	if err != nil {
+		t.Fatalf("applyRoutingProfiles failed: %v", err)
+	}
+	if !matched {
+		t.Fatalf("expected profile to match")
+	}
+
+	decision, err := SimulateRoutingProfileDecision(profiles, "light/light", "", []string{"text"})
+	if err != nil {
+		t.Fatalf("simulate failed: %v", err)
+	}
+
+	if out["model"] != decision.Primary {
+		t.Fatalf("expected model %s from apply, got %v", decision.Primary, out["model"])
+	}
+	fallbacks, _ := out["fallbacks"].([]string)
+	if !reflect.DeepEqual(fallbacks, decision.Fallbacks) {
+		t.Fatalf("expected fallbacks %+v from apply, got %+v", decision.Fallbacks, fallbacks)
 	}
 }
 
