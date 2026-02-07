@@ -34,6 +34,7 @@ Routing profiles let you map virtual provider/model aliases (for example `light/
 - `strategy` must be `ordered_failover` or `weighted`.
 - Each profile must contain at least one target.
 - Each target must include `provider`.
+- Target `capabilities` can be used for capability-aware selection (currently includes `text` and request-detected `vision`).
 - If `virtual_model` is set, `model` must be set.
 - `virtual_model` aliases must be unique per profile (case-insensitive).
 - Mixing wildcard `virtual_model: "*"` with named aliases in one profile is rejected.
