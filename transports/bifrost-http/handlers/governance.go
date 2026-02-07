@@ -253,6 +253,7 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 	// Routing Profiles (phase-1 scaffold: read-only endpoint)
 	r.GET("/api/governance/routing-profiles", lib.ChainMiddlewares(h.getRoutingProfiles, middlewares...))
 	r.GET("/api/governance/routing-profiles/export", lib.ChainMiddlewares(h.exportRoutingProfiles, middlewares...))
+	r.POST("/api/governance/routing-profiles/import", lib.ChainMiddlewares(h.importRoutingProfiles, middlewares...))
 	r.POST("/api/governance/routing-profiles/simulate", lib.ChainMiddlewares(h.simulateRoutingProfile, middlewares...))
 	r.GET("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.getRoutingProfile, middlewares...))
 	r.POST("/api/governance/routing-profiles", lib.ChainMiddlewares(h.createRoutingProfile, middlewares...))
@@ -340,6 +341,63 @@ func (h *GovernanceHandler) exportRoutingProfiles(ctx *fasthttp.RequestCtx) {
 			},
 		},
 	})
+}
+
+func (h *GovernanceHandler) importRoutingProfiles(ctx *fasthttp.RequestCtx) {
+	var req map[string]any
+	if err := sonic.Unmarshal(ctx.PostBody(), &req); err != nil {
+		SendError(ctx, fasthttp.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	profiles := make([]map[string]any, 0)
+	if rawProfiles, ok := req["routing_profiles"].([]any); ok {
+		for _, item := range rawProfiles {
+			profile, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			profiles = append(profiles, profile)
+		}
+	} else if pluginAny, ok := req["plugin"].(map[string]any); ok {
+		if configAny, ok := pluginAny["config"].(map[string]any); ok {
+			if rawProfiles, ok := configAny["routing_profiles"].([]any); ok {
+				for _, item := range rawProfiles {
+					profile, ok := item.(map[string]any)
+					if !ok {
+						continue
+					}
+					profiles = append(profiles, profile)
+				}
+			}
+		}
+	}
+
+	if len(profiles) == 0 {
+		SendError(ctx, fasthttp.StatusBadRequest, "No routing profiles found in payload")
+		return
+	}
+
+	for i := range profiles {
+		if strings.TrimSpace(fmt.Sprint(profiles[i]["id"])) == "" || strings.TrimSpace(fmt.Sprint(profiles[i]["id"])) == "<nil>" {
+			profiles[i]["id"] = uuid.NewString()
+		}
+		normalizeRoutingProfileMap(profiles[i])
+	}
+
+	if err := h.validateRoutingProfilesForConflicts(ctx, profiles); err != nil {
+		SendError(ctx, fasthttp.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.writeRoutingProfilesToGovernancePluginConfig(ctx, profiles); err != nil {
+		SendError(ctx, fasthttp.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := h.governanceManager.ReloadRoutingProfiles(ctx); err != nil {
+		logger.Warn("failed to reload routing profiles in-memory after import: %v", err)
+	}
+
+	SendJSON(ctx, map[string]any{"message": "Routing profiles imported", "count": len(profiles)})
 }
 
 func (h *GovernanceHandler) simulateRoutingProfile(ctx *fasthttp.RequestCtx) {
