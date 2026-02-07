@@ -1,8 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ArrowUpRight } from "lucide-react";
 import { useMemo } from "react";
 
 interface Props {
@@ -22,6 +20,8 @@ export default function ContactUsView({ icon, title, description, className, rea
 		return title;
 	}, [title]);
 
+	void readmeLink;
+
 	const normalizedDescription = description.toLowerCase().includes("enterprise license")
 		? "This section is not enabled in this build."
 		: description;
@@ -32,18 +32,6 @@ export default function ContactUsView({ icon, title, description, className, rea
 			<div className="flex flex-col gap-1">
 				<h1 className="text-muted-foreground text-xl font-medium">{normalizedTitle}</h1>
 				<div className="text-muted-foreground mt-2 max-w-[600px] text-sm font-normal">{normalizedDescription}</div>
-				<div className="mx-auto flex flex-row items-center gap-2">
-					<Button
-						variant="outline"
-						aria-label="Read more about this feature (opens in new tab)"
-						className="mx-auto mt-6"
-						onClick={() => {
-							window.open(`${readmeLink}?utm_source=bfd`, "_blank", "noopener,noreferrer");
-						}}
-					>
-						Read more <ArrowUpRight className="text-muted-foreground h-3 w-3" />
-					</Button>
-				</div>
 			</div>
 		</div>
 	);
