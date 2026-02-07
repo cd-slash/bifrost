@@ -124,6 +124,9 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 
 	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-name"), profile.Name)
 	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-id"), profile.ID)
+	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-primary"), primary.provider+"/"+primary.model)
+	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-candidates"), len(candidates))
+	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-fallback-count"), len(fallbacks))
 
 	return body, true, nil
 }
