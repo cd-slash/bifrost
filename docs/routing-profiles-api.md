@@ -25,6 +25,11 @@ Routing profiles let you map virtual provider/model aliases (for example `light/
   - Returns plugin config snippet:
     - `{ plugin: { name, enabled, config: { routing_profiles } } }`
 
+- `POST /api/governance/routing-profiles/simulate`
+  - Request body example:
+    - `{ "model": "light/light", "request_type": "chat", "capabilities": ["vision"] }`
+  - Returns resolved candidate list and chosen primary/fallback chain.
+
 ## Validation Rules (Current)
 
 - Profile `id`, `name`, and `virtual_provider` are required.
