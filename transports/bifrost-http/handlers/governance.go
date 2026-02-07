@@ -276,6 +276,25 @@ func (h *GovernanceHandler) getRoutingProfiles(ctx *fasthttp.RequestCtx) {
 		SendError(ctx, 500, err.Error())
 		return
 	}
+	if filter := strings.ToLower(strings.TrimSpace(string(ctx.QueryArgs().Peek("virtual_provider")))); filter != "" {
+		filtered := make([]map[string]any, 0, len(profiles))
+		for _, profile := range profiles {
+			if strings.ToLower(strings.TrimSpace(fmt.Sprint(profile["virtual_provider"]))) == filter {
+				filtered = append(filtered, profile)
+			}
+		}
+		profiles = filtered
+	}
+	sort.SliceStable(profiles, func(i, j int) bool {
+		left := strings.ToLower(strings.TrimSpace(fmt.Sprint(profiles[i]["virtual_provider"])))
+		right := strings.ToLower(strings.TrimSpace(fmt.Sprint(profiles[j]["virtual_provider"])))
+		if left == right {
+			leftName := strings.ToLower(strings.TrimSpace(fmt.Sprint(profiles[i]["name"])))
+			rightName := strings.ToLower(strings.TrimSpace(fmt.Sprint(profiles[j]["name"])))
+			return leftName < rightName
+		}
+		return left < right
+	})
 	SendJSON(ctx, map[string]any{"profiles": profiles, "count": len(profiles)})
 }
 
