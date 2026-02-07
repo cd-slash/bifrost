@@ -31,5 +31,5 @@
 
 ## Remaining
 
-- [ ] Optional: add full frontend component tests for the structured routing profile editor and target-row interactions.
-- [ ] Optional: emit dedicated telemetry counters (not just context attributes) into the metrics pipeline.
+- [x] Optional: add frontend component tests for structured routing profile target-row interactions (`84f6fda0`).
+- [x] Optional: emit dedicated telemetry counters into the metrics pipeline (`cfcbc755`).
