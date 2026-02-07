@@ -350,6 +350,7 @@ func (h *GovernanceHandler) createRoutingProfile(ctx *fasthttp.RequestCtx) {
 	if profile["id"] == nil || strings.TrimSpace(fmt.Sprint(profile["id"])) == "" {
 		profile["id"] = uuid.NewString()
 	}
+	normalizeRoutingProfileMap(profile)
 
 	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
 	if err != nil {
@@ -406,6 +407,7 @@ func (h *GovernanceHandler) updateRoutingProfile(ctx *fasthttp.RequestCtx) {
 			profiles[i][key] = value
 		}
 		profiles[i]["id"] = profileID
+		normalizeRoutingProfileMap(profiles[i])
 		updated = true
 		break
 	}
@@ -713,6 +715,53 @@ func extractStructFieldString(v reflect.Value, field string) string {
 		return ""
 	}
 	return strings.TrimSpace(f.String())
+}
+
+func normalizeRoutingProfileMap(profile map[string]any) {
+	if profile == nil {
+		return
+	}
+	if id, ok := profile["id"]; ok {
+		profile["id"] = strings.TrimSpace(fmt.Sprint(id))
+	}
+	if name, ok := profile["name"]; ok {
+		profile["name"] = strings.TrimSpace(fmt.Sprint(name))
+	}
+	if virtualProvider, ok := profile["virtual_provider"]; ok {
+		profile["virtual_provider"] = strings.TrimSpace(fmt.Sprint(virtualProvider))
+	}
+	strategy := strings.TrimSpace(fmt.Sprint(profile["strategy"]))
+	if strategy == "" || strategy == "<nil>" {
+		profile["strategy"] = "ordered_failover"
+	} else {
+		profile["strategy"] = strategy
+	}
+	if _, ok := profile["enabled"]; !ok {
+		profile["enabled"] = true
+	}
+
+	targetsAny, ok := profile["targets"].([]any)
+	if !ok {
+		return
+	}
+	for i, targetAny := range targetsAny {
+		targetMap, ok := targetAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		targetMap["provider"] = strings.TrimSpace(fmt.Sprint(targetMap["provider"]))
+		if _, exists := targetMap["model"]; exists {
+			targetMap["model"] = strings.TrimSpace(fmt.Sprint(targetMap["model"]))
+		}
+		if _, exists := targetMap["virtual_model"]; exists {
+			targetMap["virtual_model"] = strings.TrimSpace(fmt.Sprint(targetMap["virtual_model"]))
+		}
+		if _, exists := targetMap["enabled"]; !exists {
+			targetMap["enabled"] = true
+		}
+		targetsAny[i] = targetMap
+	}
+	profile["targets"] = targetsAny
 }
 
 func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Context, profiles []map[string]any) error {
