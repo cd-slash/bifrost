@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
 	useCreateRoutingProfileMutation,
 	useDeleteRoutingProfileMutation,
+	useExportRoutingProfilesQuery,
 	useGetRoutingProfilesQuery,
 	useUpdateRoutingProfileMutation,
 } from "@/lib/store/apis/routingProfilesApi";
@@ -29,9 +30,11 @@ function prettyJson(value: unknown): string {
 
 export default function RoutingProfilesPage() {
 	const [virtualProviderFilter, setVirtualProviderFilter] = useState<string>("");
+	const [showExport, setShowExport] = useState<boolean>(false);
 	const { data = [], isLoading, error, isFetching } = useGetRoutingProfilesQuery(
 		virtualProviderFilter ? { virtualProvider: virtualProviderFilter } : undefined
 	);
+	const { data: exportData } = useExportRoutingProfilesQuery(undefined, { skip: !showExport });
 	const [createRoutingProfile, { isLoading: isCreating }] = useCreateRoutingProfileMutation();
 	const [updateRoutingProfile, { isLoading: isUpdating }] = useUpdateRoutingProfileMutation();
 	const [deleteRoutingProfile, { isLoading: isDeleting }] = useDeleteRoutingProfileMutation();
@@ -123,6 +126,22 @@ export default function RoutingProfilesPage() {
 					</Button>
 					{createError ? <span className="text-xs text-destructive">{createError}</span> : null}
 				</div>
+			</div>
+
+			<div className="space-y-2 rounded-md border p-4">
+				<div className="flex items-center gap-2">
+					<Button variant="outline" onClick={() => setShowExport((prev) => !prev)}>
+						{showExport ? "Hide export" : "Show export JSON"}
+					</Button>
+				</div>
+				{showExport ? (
+					<Textarea
+						readOnly
+						value={JSON.stringify(exportData || { plugin: {} }, null, 2)}
+						rows={10}
+						className="font-mono text-xs"
+					/>
+				) : null}
 			</div>
 
 			<div className="space-y-3">
