@@ -26,6 +26,18 @@ require (
 	gorm.io/gorm v1.31.1
 )
 
+replace github.com/maximhq/bifrost/core => ../core
+
+replace github.com/maximhq/bifrost/framework => ../framework
+
+replace github.com/maximhq/bifrost/plugins/governance => ../plugins/governance
+
+replace github.com/maximhq/bifrost/plugins/logging => ../plugins/logging
+
+replace github.com/maximhq/bifrost/plugins/semanticcache => ../plugins/semanticcache
+
+replace github.com/maximhq/bifrost/plugins/telemetry => ../plugins/telemetry
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.123.0 // indirect
