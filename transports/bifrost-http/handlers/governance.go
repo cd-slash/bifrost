@@ -251,6 +251,7 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 
 	// Routing Profiles (phase-1 scaffold: read-only endpoint)
 	r.GET("/api/governance/routing-profiles", lib.ChainMiddlewares(h.getRoutingProfiles, middlewares...))
+	r.GET("/api/governance/routing-profiles/export", lib.ChainMiddlewares(h.exportRoutingProfiles, middlewares...))
 	r.GET("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.getRoutingProfile, middlewares...))
 	r.POST("/api/governance/routing-profiles", lib.ChainMiddlewares(h.createRoutingProfile, middlewares...))
 	r.PUT("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.updateRoutingProfile, middlewares...))
@@ -319,6 +320,24 @@ func (h *GovernanceHandler) getRoutingProfile(ctx *fasthttp.RequestCtx) {
 	}
 
 	SendError(ctx, fasthttp.StatusNotFound, "Routing profile not found")
+}
+
+func (h *GovernanceHandler) exportRoutingProfiles(ctx *fasthttp.RequestCtx) {
+	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
+	if err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	SendJSON(ctx, map[string]any{
+		"plugin": map[string]any{
+			"name":    governance.PluginName,
+			"enabled": true,
+			"config": map[string]any{
+				"routing_profiles": profiles,
+			},
+		},
+	})
 }
 
 func (h *GovernanceHandler) createRoutingProfile(ctx *fasthttp.RequestCtx) {
