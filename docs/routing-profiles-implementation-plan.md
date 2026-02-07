@@ -92,11 +92,18 @@ Resolution order:
 
 ## Immediate Execution Checklist
 
-1. [ ] Add core routing profile structs and strategy enum.
-2. [ ] Add governance plugin profile engine and integrate in HTTP pre-hook.
-3. [ ] Add tests for alias resolution (`fast/model`) and failover chain generation.
-4. [ ] Add basic API/types scaffolding for future UI integration.
-5. [ ] Start UI slice with read-only list page wired to placeholder endpoint.
+1. [x] Add core routing profile structs and strategy enum.
+2. [x] Add governance plugin profile engine and integrate in HTTP pre-hook.
+3. [x] Add tests for alias resolution (`fast/model`) and failover chain generation.
+4. [x] Add API/types scaffolding and routing profile CRUD endpoints.
+5. [x] Start UI slice with routing profile page and basic CRUD JSON workflow.
+
+## Current Status
+
+- Phase 1 routing-profile resolution is active in governance HTTP pre-hook.
+- Phase 1 CRUD is available via `/api/governance/routing-profiles` endpoints.
+- Phase 2 hardening has started with virtual namespace conflict checks and alias constraints.
+- Phase 2 table persistence groundwork exists in configstore (table + migration + CRUD methods).
 
 ## Phase 1 Config Shape (Current)
 
