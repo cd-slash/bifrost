@@ -1,8 +1,10 @@
 package governance
 
 import (
+	"reflect"
 	"testing"
 
+	"github.com/bytedance/sonic"
 	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/maximhq/bifrost/framework/configstore"
 )
@@ -186,6 +188,46 @@ func TestRoutingProfilesFromConfigPrefersPluginConfig(t *testing.T) {
 
 	if len(profiles) != 1 {
 		t.Fatalf("expected 1 routing profile from plugin config, got %d", len(profiles))
+	}
+	if profiles[0].VirtualProvider != "light" {
+		t.Fatalf("expected virtual provider light, got %s", profiles[0].VirtualProvider)
+	}
+}
+
+func TestRoutingProfilesFromConfigFallsBackToGovernanceConfig(t *testing.T) {
+	t.Parallel()
+
+	governanceConfig := &configstore.GovernanceConfig{}
+	field := reflect.ValueOf(governanceConfig).Elem().FieldByName("RoutingProfiles")
+	if !field.IsValid() {
+		t.Skip("governance config in this module does not expose RoutingProfiles")
+	}
+
+	encoded := []map[string]any{{
+		"id":               "p1",
+		"name":             "Light",
+		"virtual_provider": "light",
+		"enabled":          true,
+		"strategy":         "ordered_failover",
+		"targets": []map[string]any{{
+			"provider": "cerebras",
+			"enabled":  true,
+		}},
+	}}
+
+	payload, err := sonic.Marshal(encoded)
+	if err != nil {
+		t.Fatalf("failed to marshal test data: %v", err)
+	}
+	ptr := reflect.New(field.Type())
+	if err := sonic.Unmarshal(payload, ptr.Interface()); err != nil {
+		t.Fatalf("failed to unmarshal test data into routing profiles field: %v", err)
+	}
+	field.Set(ptr.Elem())
+
+	profiles := routingProfilesFromConfig(nil, governanceConfig)
+	if len(profiles) != 1 {
+		t.Fatalf("expected 1 routing profile from governance config, got %d", len(profiles))
 	}
 	if profiles[0].VirtualProvider != "light" {
 		t.Fatalf("expected virtual provider light, got %s", profiles[0].VirtualProvider)
