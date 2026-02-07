@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -426,6 +427,12 @@ func (h *GovernanceHandler) deleteRoutingProfile(ctx *fasthttp.RequestCtx) {
 }
 
 func (h *GovernanceHandler) readRoutingProfilesFromGovernancePluginConfig(ctx context.Context) ([]map[string]any, error) {
+	if tableProfiles, supported, err := h.tryReadRoutingProfilesFromTable(ctx); err != nil {
+		return nil, err
+	} else if supported && len(tableProfiles) > 0 {
+		return tableProfiles, nil
+	}
+
 	plugin, err := h.configStore.GetPlugin(ctx, governance.PluginName)
 	if err != nil {
 		if errors.Is(err, configstore.ErrNotFound) {
@@ -453,6 +460,10 @@ func (h *GovernanceHandler) readRoutingProfilesFromGovernancePluginConfig(ctx co
 }
 
 func (h *GovernanceHandler) writeRoutingProfilesToGovernancePluginConfig(ctx context.Context, profiles []map[string]any) error {
+	if err := h.tryWriteRoutingProfilesToTable(ctx, profiles); err != nil {
+		return err
+	}
+
 	plugin, err := h.configStore.GetPlugin(ctx, governance.PluginName)
 	if err != nil && !errors.Is(err, configstore.ErrNotFound) {
 		return fmt.Errorf("failed to load governance plugin config: %w", err)
@@ -500,6 +511,160 @@ func (h *GovernanceHandler) writeRoutingProfilesToGovernancePluginConfig(ctx con
 	}
 
 	return nil
+}
+
+func (h *GovernanceHandler) tryReadRoutingProfilesFromTable(ctx context.Context) ([]map[string]any, bool, error) {
+	storeValue := reflect.ValueOf(h.configStore)
+	getMethod := storeValue.MethodByName("GetRoutingProfiles")
+	if !getMethod.IsValid() {
+		return nil, false, nil
+	}
+
+	results := getMethod.Call([]reflect.Value{reflect.ValueOf(ctx)})
+	if len(results) != 2 {
+		return nil, true, fmt.Errorf("invalid GetRoutingProfiles method signature")
+	}
+
+	if errVal := results[1]; !errVal.IsNil() {
+		if err, ok := errVal.Interface().(error); ok {
+			return nil, true, fmt.Errorf("failed to read routing profiles table: %w", err)
+		}
+		return nil, true, fmt.Errorf("failed to read routing profiles table")
+	}
+
+	rows := results[0].Interface()
+	payload, err := sonic.Marshal(rows)
+	if err != nil {
+		return nil, true, fmt.Errorf("failed to encode routing profiles rows: %w", err)
+	}
+
+	var profiles []map[string]any
+	if err := sonic.Unmarshal(payload, &profiles); err != nil {
+		return nil, true, fmt.Errorf("failed to decode routing profiles rows: %w", err)
+	}
+
+	if profiles == nil {
+		profiles = []map[string]any{}
+	}
+
+	return profiles, true, nil
+}
+
+func (h *GovernanceHandler) tryWriteRoutingProfilesToTable(ctx context.Context, profiles []map[string]any) error {
+	storeValue := reflect.ValueOf(h.configStore)
+	getMethod := storeValue.MethodByName("GetRoutingProfiles")
+	createMethod := storeValue.MethodByName("CreateRoutingProfile")
+	updateMethod := storeValue.MethodByName("UpdateRoutingProfile")
+	deleteMethod := storeValue.MethodByName("DeleteRoutingProfile")
+	if !getMethod.IsValid() || !createMethod.IsValid() || !updateMethod.IsValid() || !deleteMethod.IsValid() {
+		return nil
+	}
+
+	getResults := getMethod.Call([]reflect.Value{reflect.ValueOf(ctx)})
+	if len(getResults) != 2 {
+		return fmt.Errorf("invalid GetRoutingProfiles method signature")
+	}
+	if errVal := getResults[1]; !errVal.IsNil() {
+		if err, ok := errVal.Interface().(error); ok {
+			return fmt.Errorf("failed loading routing profiles from table: %w", err)
+		}
+		return fmt.Errorf("failed loading routing profiles from table")
+	}
+
+	currentRows := getResults[0]
+	currentByID := map[string]reflect.Value{}
+	for i := 0; i < currentRows.Len(); i++ {
+		row := currentRows.Index(i)
+		id := extractStructFieldString(row, "ID")
+		if id != "" {
+			currentByID[id] = row
+		}
+	}
+
+	createArgType := createMethod.Type().In(1)
+	incomingIDs := map[string]struct{}{}
+	for _, profile := range profiles {
+		id := strings.TrimSpace(fmt.Sprint(profile["id"]))
+		if id == "" {
+			id = uuid.NewString()
+			profile["id"] = id
+		}
+		incomingIDs[id] = struct{}{}
+
+		profileArg, err := mapToMethodArg(profile, createArgType)
+		if err != nil {
+			return fmt.Errorf("failed to convert routing profile %s for table write: %w", id, err)
+		}
+
+		if _, exists := currentByID[id]; exists {
+			updateResults := updateMethod.Call([]reflect.Value{reflect.ValueOf(ctx), profileArg})
+			if len(updateResults) == 1 && !updateResults[0].IsNil() {
+				if err, ok := updateResults[0].Interface().(error); ok {
+					return fmt.Errorf("failed to update routing profile %s: %w", id, err)
+				}
+				return fmt.Errorf("failed to update routing profile %s", id)
+			}
+		} else {
+			createResults := createMethod.Call([]reflect.Value{reflect.ValueOf(ctx), profileArg})
+			if len(createResults) == 1 && !createResults[0].IsNil() {
+				if err, ok := createResults[0].Interface().(error); ok {
+					return fmt.Errorf("failed to create routing profile %s: %w", id, err)
+				}
+				return fmt.Errorf("failed to create routing profile %s", id)
+			}
+		}
+	}
+
+	for id := range currentByID {
+		if _, exists := incomingIDs[id]; exists {
+			continue
+		}
+		deleteResults := deleteMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(id)})
+		if len(deleteResults) == 1 && !deleteResults[0].IsNil() {
+			if err, ok := deleteResults[0].Interface().(error); ok {
+				if errors.Is(err, configstore.ErrNotFound) {
+					continue
+				}
+				return fmt.Errorf("failed to delete routing profile %s: %w", id, err)
+			}
+			return fmt.Errorf("failed to delete routing profile %s", id)
+		}
+	}
+
+	return nil
+}
+
+func mapToMethodArg(profile map[string]any, argType reflect.Type) (reflect.Value, error) {
+	payload, err := sonic.Marshal(profile)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+
+	if argType.Kind() != reflect.Pointer {
+		return reflect.Value{}, fmt.Errorf("unsupported method arg type %s", argType.String())
+	}
+	instance := reflect.New(argType.Elem())
+	if err := sonic.Unmarshal(payload, instance.Interface()); err != nil {
+		return reflect.Value{}, err
+	}
+	return instance, nil
+}
+
+func extractStructFieldString(v reflect.Value, field string) string {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return ""
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return ""
+	}
+	f := v.FieldByName(field)
+	if !f.IsValid() || f.Kind() != reflect.String {
+		return ""
+	}
+	return strings.TrimSpace(f.String())
 }
 
 func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Context, profiles []map[string]any) error {
