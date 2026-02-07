@@ -2339,6 +2339,13 @@ func (s *RDBConfigStore) CreateRoutingProfile(ctx context.Context, profile *tabl
 		database = tx[0]
 	}
 
+	if profile.ConfigHash == "" {
+		hash, err := GenerateRoutingProfileHash(*profile)
+		if err == nil {
+			profile.ConfigHash = hash
+		}
+	}
+
 	if err := database.WithContext(ctx).Create(profile).Error; err != nil {
 		return s.parseGormError(err)
 	}
@@ -2350,6 +2357,11 @@ func (s *RDBConfigStore) UpdateRoutingProfile(ctx context.Context, profile *tabl
 	database := s.db
 	if len(tx) > 0 && tx[0] != nil {
 		database = tx[0]
+	}
+
+	hash, err := GenerateRoutingProfileHash(*profile)
+	if err == nil {
+		profile.ConfigHash = hash
 	}
 
 	if err := database.WithContext(ctx).Save(profile).Error; err != nil {

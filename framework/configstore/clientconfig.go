@@ -835,6 +835,36 @@ func GenerateRoutingRuleHash(r tables.TableRoutingRule) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
+// GenerateRoutingProfileHash generates a SHA256 hash for a routing profile.
+// This is used to detect changes between config and database state.
+// Skips: CreatedAt, UpdatedAt (dynamic fields)
+func GenerateRoutingProfileHash(r tables.TableRoutingProfile) (string, error) {
+	hash := sha256.New()
+
+	hash.Write([]byte(r.ID))
+	hash.Write([]byte(r.Name))
+	hash.Write([]byte(r.Description))
+	hash.Write([]byte(r.VirtualProvider))
+	hash.Write([]byte(r.Strategy))
+	if r.Enabled {
+		hash.Write([]byte("enabled:true"))
+	} else {
+		hash.Write([]byte("enabled:false"))
+	}
+
+	if r.Targets != nil {
+		hash.Write([]byte(*r.Targets))
+	} else if len(r.ParsedTargets) > 0 {
+		data, err := sonic.Marshal(r.ParsedTargets)
+		if err != nil {
+			return "", err
+		}
+		hash.Write(data)
+	}
+
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
 // GenerateMCPClientHash generates a SHA256 hash for an MCP client.
 // This is used to detect changes to MCP clients between config.json and database.
 // Skips: ID (autoIncrement), CreatedAt, UpdatedAt (dynamic fields)

@@ -31,7 +31,7 @@ type RateHint struct {
 type TableRoutingProfile struct {
 	ID              string `gorm:"primaryKey;type:varchar(255)" json:"id"`
 	ConfigHash      string `gorm:"type:varchar(255)" json:"config_hash"`
-	Name            string `gorm:"type:varchar(255);not null;uniqueIndex:idx_routing_profile_virtual_provider" json:"name"`
+	Name            string `gorm:"type:varchar(255);not null;uniqueIndex:idx_routing_profile_name" json:"name"`
 	Description     string `gorm:"type:text" json:"description"`
 	VirtualProvider string `gorm:"type:varchar(255);not null;uniqueIndex:idx_routing_profile_virtual_provider" json:"virtual_provider"`
 	Enabled         bool   `gorm:"not null;default:true" json:"enabled"`
