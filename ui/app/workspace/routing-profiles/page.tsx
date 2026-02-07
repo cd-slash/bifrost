@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	useCreateRoutingProfileMutation,
@@ -27,7 +28,10 @@ function prettyJson(value: unknown): string {
 }
 
 export default function RoutingProfilesPage() {
-	const { data = [], isLoading, error, isFetching } = useGetRoutingProfilesQuery();
+	const [virtualProviderFilter, setVirtualProviderFilter] = useState<string>("");
+	const { data = [], isLoading, error, isFetching } = useGetRoutingProfilesQuery(
+		virtualProviderFilter ? { virtualProvider: virtualProviderFilter } : undefined
+	);
 	const [createRoutingProfile, { isLoading: isCreating }] = useCreateRoutingProfileMutation();
 	const [updateRoutingProfile, { isLoading: isUpdating }] = useUpdateRoutingProfileMutation();
 	const [deleteRoutingProfile, { isLoading: isDeleting }] = useDeleteRoutingProfileMutation();
@@ -101,6 +105,13 @@ export default function RoutingProfilesPage() {
 				<p className="text-sm text-muted-foreground">
 					Manage virtual provider/model profiles. Use aliases like <code>light/light</code>.
 				</p>
+				<div className="mt-3 max-w-sm">
+					<Input
+						placeholder="Filter by virtual provider"
+						value={virtualProviderFilter}
+						onChange={(e) => setVirtualProviderFilter(e.target.value)}
+					/>
+				</div>
 			</div>
 
 			<div className="space-y-2 rounded-md border p-4">

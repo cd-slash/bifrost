@@ -3,13 +3,19 @@ import { GetRoutingProfilesResponse, RoutingProfile } from "@/lib/types/routingP
 
 export const routingProfilesApi = baseApi.injectEndpoints({
 	endpoints: (builder) => ({
-		getRoutingProfiles: builder.query<RoutingProfile[], void>({
-			query: () => ({
-				url: "/governance/routing-profiles",
+		getRoutingProfiles: builder.query<RoutingProfile[], { virtualProvider?: string } | void>({
+			query: (params) => {
+				const searchParams = new URLSearchParams();
+				if (params?.virtualProvider) {
+					searchParams.append("virtual_provider", params.virtualProvider);
+				}
+				return {
+					url: `/governance/routing-profiles${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
 				method: "GET",
-			}),
+				};
+			},
 			transformResponse: (response: GetRoutingProfilesResponse) => response.profiles || [],
-			providesTags: ["RoutingProfiles"],
+			providesTags: (result, error, params) => ["RoutingProfiles", { type: "RoutingProfiles", id: params?.virtualProvider || "all" }],
 		}),
 		getRoutingProfile: builder.query<RoutingProfile, string>({
 			query: (id) => ({
