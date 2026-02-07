@@ -294,3 +294,21 @@ func TestSimulateRoutingProfileDecision(t *testing.T) {
 		t.Fatalf("unexpected fallbacks: %+v", decision.Fallbacks)
 	}
 }
+
+func TestSetRoutingProfilesValidatesInput(t *testing.T) {
+	t.Parallel()
+
+	plugin := &GovernancePlugin{}
+	err := plugin.SetRoutingProfiles([]RoutingProfile{{
+		Name:            "Invalid",
+		VirtualProvider: "",
+		Enabled:         true,
+		Targets: []RoutingProfileTarget{{
+			Provider: "openai",
+			Enabled:  true,
+		}},
+	}})
+	if err == nil {
+		t.Fatalf("expected validation error when setting invalid routing profiles")
+	}
+}

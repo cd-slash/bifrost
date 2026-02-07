@@ -39,6 +39,7 @@ type GovernanceManager interface {
 	RemoveProvider(ctx context.Context, provider schemas.ModelProvider) error
 	ReloadRoutingRule(ctx context.Context, id string) error
 	RemoveRoutingRule(ctx context.Context, id string) error
+	ReloadRoutingProfiles(ctx context.Context) error
 }
 
 // GovernanceHandler manages HTTP requests for governance operations
@@ -521,6 +522,9 @@ func (h *GovernanceHandler) createRoutingProfile(ctx *fasthttp.RequestCtx) {
 		SendError(ctx, 500, err.Error())
 		return
 	}
+	if err := h.governanceManager.ReloadRoutingProfiles(ctx); err != nil {
+		logger.Warn("failed to reload routing profiles in-memory after create: %v", err)
+	}
 
 	ctx.SetStatusCode(fasthttp.StatusCreated)
 	SendJSON(ctx, map[string]any{
@@ -579,6 +583,9 @@ func (h *GovernanceHandler) updateRoutingProfile(ctx *fasthttp.RequestCtx) {
 		SendError(ctx, 500, err.Error())
 		return
 	}
+	if err := h.governanceManager.ReloadRoutingProfiles(ctx); err != nil {
+		logger.Warn("failed to reload routing profiles in-memory after update: %v", err)
+	}
 
 	SendJSON(ctx, map[string]any{"message": "Routing profile updated. Restart may be required for plugin reload."})
 }
@@ -614,6 +621,9 @@ func (h *GovernanceHandler) deleteRoutingProfile(ctx *fasthttp.RequestCtx) {
 	if err := h.writeRoutingProfilesToGovernancePluginConfig(ctx, filtered); err != nil {
 		SendError(ctx, 500, err.Error())
 		return
+	}
+	if err := h.governanceManager.ReloadRoutingProfiles(ctx); err != nil {
+		logger.Warn("failed to reload routing profiles in-memory after delete: %v", err)
 	}
 
 	SendJSON(ctx, map[string]any{"message": "Routing profile deleted. Restart may be required for plugin reload."})

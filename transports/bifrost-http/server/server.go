@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
 	bifrost "github.com/maximhq/bifrost/core"
@@ -79,6 +80,7 @@ type ServerCallbacks interface {
 	RemoveProvider(ctx context.Context, provider schemas.ModelProvider) error
 	ReloadRoutingRule(ctx context.Context, id string) error
 	RemoveRoutingRule(ctx context.Context, id string) error
+	ReloadRoutingProfiles(ctx context.Context) error
 	// MCP related callbacks
 	AddMCPClient(ctx context.Context, clientConfig *schemas.MCPClientConfig) error
 	RemoveMCPClient(ctx context.Context, id string) error
@@ -566,6 +568,39 @@ func (s *BifrostHTTPServer) RemoveRoutingRule(ctx context.Context, id string) er
 		return fmt.Errorf("failed to delete routing rule from store: %w", err)
 	}
 	return nil
+}
+
+// ReloadRoutingProfiles reloads routing profiles from config store into governance plugin.
+func (s *BifrostHTTPServer) ReloadRoutingProfiles(ctx context.Context) error {
+	governancePlugin, err := s.getGovernancePlugin()
+	if err != nil {
+		return fmt.Errorf("governance plugin not found: %w", err)
+	}
+
+	pluginConfig, err := s.Config.ConfigStore.GetPlugin(ctx, governance.PluginName)
+	if err != nil {
+		if !errors.Is(err, configstore.ErrNotFound) {
+			return fmt.Errorf("failed to load governance plugin config: %w", err)
+		}
+		return governancePlugin.SetRoutingProfiles(nil)
+	}
+
+	if pluginConfig == nil || pluginConfig.Config == nil {
+		return governancePlugin.SetRoutingProfiles(nil)
+	}
+
+	payload, err := sonic.Marshal(pluginConfig.Config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal governance plugin config: %w", err)
+	}
+	var parsed struct {
+		RoutingProfiles []governance.RoutingProfile `json:"routing_profiles"`
+	}
+	if err := sonic.Unmarshal(payload, &parsed); err != nil {
+		return fmt.Errorf("failed to decode governance plugin routing profiles: %w", err)
+	}
+
+	return governancePlugin.SetRoutingProfiles(parsed.RoutingProfiles)
 }
 
 // ReloadClientConfigFromConfigStore reloads the client config from config store
