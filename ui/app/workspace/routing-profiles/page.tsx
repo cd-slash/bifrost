@@ -8,6 +8,7 @@ import {
 	useDeleteRoutingProfileMutation,
 	useExportRoutingProfilesQuery,
 	useGetRoutingProfilesQuery,
+	useImportRoutingProfilesMutation,
 	useSimulateRoutingProfileMutation,
 	useUpdateRoutingProfileMutation,
 } from "@/lib/store/apis/routingProfilesApi";
@@ -40,11 +41,14 @@ export default function RoutingProfilesPage() {
 	const [updateRoutingProfile, { isLoading: isUpdating }] = useUpdateRoutingProfileMutation();
 	const [deleteRoutingProfile, { isLoading: isDeleting }] = useDeleteRoutingProfileMutation();
 	const [simulateRoutingProfile, { isLoading: isSimulating }] = useSimulateRoutingProfileMutation();
+	const [importRoutingProfiles, { isLoading: isImporting }] = useImportRoutingProfilesMutation();
 
 	const [createDraft, setCreateDraft] = useState<string>(prettyJson(defaultProfileDraft));
 	const [simulateDraft, setSimulateDraft] = useState<string>(prettyJson({ model: "light/light", request_type: "chat" }));
+	const [importDraft, setImportDraft] = useState<string>(prettyJson({ routing_profiles: [defaultProfileDraft] }));
 	const [simulateResult, setSimulateResult] = useState<string>("");
 	const [simulateError, setSimulateError] = useState<string>("");
+	const [importError, setImportError] = useState<string>("");
 	const [createError, setCreateError] = useState<string>("");
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [editingRows, setEditingRows] = useState<Record<string, string>>({});
@@ -103,6 +107,16 @@ export default function RoutingProfilesPage() {
 			setSimulateResult(prettyJson(response));
 		} catch (err: any) {
 			setSimulateError(err?.data?.error?.message || err?.message || "Failed to simulate routing profile");
+		}
+	};
+
+	const onImport = async () => {
+		setImportError("");
+		try {
+			const parsed = JSON.parse(importDraft) as { routing_profiles?: RoutingProfile[]; plugin?: unknown };
+			await importRoutingProfiles(parsed).unwrap();
+		} catch (err: any) {
+			setImportError(err?.data?.error?.message || err?.message || "Failed to import routing profiles");
 		}
 	};
 
@@ -171,6 +185,17 @@ export default function RoutingProfilesPage() {
 					{simulateError ? <span className="text-xs text-destructive">{simulateError}</span> : null}
 				</div>
 				{simulateResult ? <Textarea readOnly value={simulateResult} rows={10} className="font-mono text-xs" /> : null}
+			</div>
+
+			<div className="space-y-2 rounded-md border p-4">
+				<p className="text-sm font-medium">Import profiles (JSON)</p>
+				<Textarea value={importDraft} onChange={(e) => setImportDraft(e.target.value)} rows={8} className="font-mono text-xs" />
+				<div className="flex items-center gap-2">
+					<Button variant="outline" onClick={onImport} disabled={isImporting}>
+						{isImporting ? "Importing..." : "Import"}
+					</Button>
+					{importError ? <span className="text-xs text-destructive">{importError}</span> : null}
+				</div>
 			</div>
 
 			<div className="space-y-3">

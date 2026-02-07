@@ -66,6 +66,14 @@ export const routingProfilesApi = baseApi.injectEndpoints({
 				body,
 			}),
 		}),
+		importRoutingProfiles: builder.mutation<{ message: string; count: number }, { routing_profiles?: RoutingProfile[]; plugin?: unknown }>({
+			query: (body) => ({
+				url: "/governance/routing-profiles/import",
+				method: "POST",
+				body,
+			}),
+			invalidatesTags: ["RoutingProfiles"],
+		}),
 	}),
 });
 
@@ -77,4 +85,5 @@ export const {
 	useUpdateRoutingProfileMutation,
 	useDeleteRoutingProfileMutation,
 	useSimulateRoutingProfileMutation,
+	useImportRoutingProfilesMutation,
 } = routingProfilesApi;
