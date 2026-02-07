@@ -53,6 +53,9 @@ type PrometheusPlugin struct {
 	OutputTokensTotal              *prometheus.CounterVec
 	CacheHitsTotal                 *prometheus.CounterVec
 	CostTotal                      *prometheus.CounterVec
+	RoutingProfileHitsTotal        *prometheus.CounterVec
+	RoutingProfileFallbacksTotal   *prometheus.CounterVec
+	RoutingProfileRejectionsTotal  *prometheus.CounterVec
 	StreamInterTokenLatencySeconds *prometheus.HistogramVec
 	StreamFirstTokenLatencySeconds *prometheus.HistogramVec
 	customLabels                   []string
@@ -232,6 +235,30 @@ func Init(config *Config, pricingManager *modelcatalog.ModelCatalog, logger sche
 		append(defaultBifrostLabels, filteredCustomLabels...),
 	)
 
+	bifrostRoutingProfileHitsTotal := factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "bifrost_routing_profile_hits_total",
+			Help: "Total number of requests matched by governance routing profiles.",
+		},
+		[]string{"routing_profile_id", "routing_profile_name"},
+	)
+
+	bifrostRoutingProfileFallbacksTotal := factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "bifrost_routing_profile_fallbacks_total",
+			Help: "Total number of fallback candidates emitted by governance routing profiles.",
+		},
+		[]string{"routing_profile_id", "routing_profile_name"},
+	)
+
+	bifrostRoutingProfileRejectionsTotal := factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "bifrost_routing_profile_rejections_total",
+			Help: "Total number of routing profile target rejections by reason.",
+		},
+		[]string{"routing_profile_id", "reason"},
+	)
+
 	bifrostStreamInterTokenLatencySeconds := factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "bifrost_stream_inter_token_latency_seconds",
@@ -266,6 +293,9 @@ func Init(config *Config, pricingManager *modelcatalog.ModelCatalog, logger sche
 		OutputTokensTotal:              bifrostOutputTokensTotal,
 		CacheHitsTotal:                 bifrostCacheHitsTotal,
 		CostTotal:                      bifrostCostTotal,
+		RoutingProfileHitsTotal:        bifrostRoutingProfileHitsTotal,
+		RoutingProfileFallbacksTotal:   bifrostRoutingProfileFallbacksTotal,
+		RoutingProfileRejectionsTotal:  bifrostRoutingProfileRejectionsTotal,
 		StreamInterTokenLatencySeconds: bifrostStreamInterTokenLatencySeconds,
 		StreamFirstTokenLatencySeconds: bifrostStreamFirstTokenLatencySeconds,
 		customLabels:                   filteredCustomLabels,
@@ -322,6 +352,10 @@ func (p *PrometheusPlugin) PostLLMHook(ctx *schemas.BifrostContext, result *sche
 	virtualKeyName := getStringFromContext(ctx, schemas.BifrostContextKeyGovernanceVirtualKeyName)
 	routingRuleID := getStringFromContext(ctx, schemas.BifrostContextKeyGovernanceRoutingRuleID)
 	routingRuleName := getStringFromContext(ctx, schemas.BifrostContextKeyGovernanceRoutingRuleName)
+	routingProfileID := getStringFromContext(ctx, schemas.BifrostContextKey("bf-governance-routing-profile-id"))
+	routingProfileName := getStringFromContext(ctx, schemas.BifrostContextKey("bf-governance-routing-profile-name"))
+	routingProfileFallbackCount := getIntFromContext(ctx, schemas.BifrostContextKey("bf-governance-routing-profile-fallback-count"))
+	routingProfileRejections := getIntMapFromContext(ctx, schemas.BifrostContextKey("bf-governance-routing-profile-rejections"))
 
 	selectedKeyID := getStringFromContext(ctx, schemas.BifrostContextKeySelectedKeyID)
 	selectedKeyName := getStringFromContext(ctx, schemas.BifrostContextKeySelectedKeyName)
@@ -371,6 +405,19 @@ func (p *PrometheusPlugin) PostLLMHook(ctx *schemas.BifrostContext, result *sche
 
 	// Calculate cost and record metrics in a separate goroutine to avoid blocking the main thread
 	go func() {
+		if routingProfileID != "" {
+			p.RoutingProfileHitsTotal.WithLabelValues(routingProfileID, routingProfileName).Inc()
+			if routingProfileFallbackCount > 0 {
+				p.RoutingProfileFallbacksTotal.WithLabelValues(routingProfileID, routingProfileName).Add(float64(routingProfileFallbackCount))
+			}
+			for reason, count := range routingProfileRejections {
+				if count <= 0 {
+					continue
+				}
+				p.RoutingProfileRejectionsTotal.WithLabelValues(routingProfileID, reason).Add(float64(count))
+			}
+		}
+
 		// For streaming requests, handle per-token metrics for intermediate chunks
 		if bifrost.IsStreamRequestType(requestType) {
 			// For intermediate chunks, record per-token metrics and exit.

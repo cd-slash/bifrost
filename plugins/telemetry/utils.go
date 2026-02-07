@@ -89,6 +89,16 @@ func getIntFromContext(ctx context.Context, key any) int {
 	return 0
 }
 
+// getIntMapFromContext safely extracts a map[string]int value from context
+func getIntMapFromContext(ctx context.Context, key any) map[string]int {
+	if value := ctx.Value(key); value != nil {
+		if v, ok := value.(map[string]int); ok {
+			return v
+		}
+	}
+	return nil
+}
+
 // containsLabel checks if a string slice contains a specific label, ignoring differences
 // between underscores and hyphens. It checks for:
 // - Direct match
