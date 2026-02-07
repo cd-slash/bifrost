@@ -313,11 +313,17 @@ func (p *GovernancePlugin) validateRoutingProfiles() error {
 		if len(profile.Targets) == 0 {
 			return fmt.Errorf("routing profile %s must define at least one target", profile.Name)
 		}
+		if profile.Strategy != "" && profile.Strategy != RoutingProfileStrategyOrdered && profile.Strategy != RoutingProfileStrategyWeighted {
+			return fmt.Errorf("routing profile %s has invalid strategy %s", profile.Name, profile.Strategy)
+		}
 
 		hasWildcardVirtualModel := false
 		hasNamedVirtualModel := false
 		seenVirtualModels := map[string]struct{}{}
 		for _, target := range profile.Targets {
+			if strings.TrimSpace(target.Provider) == "" {
+				return fmt.Errorf("routing profile %s target provider is required", profile.Name)
+			}
 			if strings.TrimSpace(target.VirtualModel) != "" && strings.TrimSpace(target.Model) == "" {
 				return fmt.Errorf("routing profile %s target for virtual_model %s must define model", profile.Name, target.VirtualModel)
 			}

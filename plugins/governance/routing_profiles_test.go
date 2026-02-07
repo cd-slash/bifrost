@@ -116,3 +116,24 @@ func TestValidateRoutingProfilesRejectsDuplicateVirtualModelAliases(t *testing.T
 		t.Fatalf("expected duplicate virtual_model alias validation error")
 	}
 }
+
+func TestValidateRoutingProfilesRejectsInvalidStrategy(t *testing.T) {
+	t.Parallel()
+
+	plugin := &GovernancePlugin{
+		routingProfiles: []RoutingProfile{{
+			Name:            "Light",
+			VirtualProvider: "light",
+			Strategy:        "round_robin",
+			Enabled:         true,
+			Targets: []RoutingProfileTarget{{
+				Provider: "cerebras",
+				Enabled:  true,
+			}},
+		}},
+	}
+
+	if err := plugin.validateRoutingProfiles(); err == nil {
+		t.Fatalf("expected invalid strategy validation error")
+	}
+}

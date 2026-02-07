@@ -679,6 +679,16 @@ func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Cont
 
 	seenVirtualProviders := map[string]struct{}{}
 	for _, profile := range profiles {
+		name := strings.TrimSpace(fmt.Sprint(profile["name"]))
+		if name == "" {
+			return fmt.Errorf("routing profile name is required")
+		}
+
+		strategy := strings.TrimSpace(fmt.Sprint(profile["strategy"]))
+		if strategy != "" && strategy != "ordered_failover" && strategy != "weighted" {
+			return fmt.Errorf("invalid strategy %q (allowed: ordered_failover, weighted)", strategy)
+		}
+
 		virtualProvider := strings.ToLower(strings.TrimSpace(fmt.Sprint(profile["virtual_provider"])))
 		if virtualProvider == "" {
 			return fmt.Errorf("routing profile virtual_provider is required")
@@ -695,6 +705,9 @@ func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Cont
 		seenVirtualProviders[virtualProvider] = struct{}{}
 
 		targetsRaw, _ := profile["targets"].([]any)
+		if len(targetsRaw) == 0 {
+			return fmt.Errorf("routing profile %q must contain at least one target", virtualProvider)
+		}
 		hasWildcardVirtualModel := false
 		hasNamedVirtualModel := false
 		seenVirtualModels := map[string]struct{}{}
@@ -702,6 +715,10 @@ func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Cont
 			target, ok := targetAny.(map[string]any)
 			if !ok {
 				continue
+			}
+			provider := strings.TrimSpace(fmt.Sprint(target["provider"]))
+			if provider == "" {
+				return fmt.Errorf("routing profile %q target provider is required", virtualProvider)
 			}
 			virtualModel := strings.TrimSpace(fmt.Sprint(target["virtual_model"]))
 			model := strings.TrimSpace(fmt.Sprint(target["model"]))
