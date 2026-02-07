@@ -268,3 +268,29 @@ func TestExtractRequestCapabilitiesDetectsVision(t *testing.T) {
 		t.Fatalf("expected vision capability")
 	}
 }
+
+func TestSimulateRoutingProfileDecision(t *testing.T) {
+	t.Parallel()
+
+	profiles := []RoutingProfile{{
+		Name:            "Light",
+		VirtualProvider: "light",
+		Enabled:         true,
+		Strategy:        RoutingProfileStrategyOrdered,
+		Targets: []RoutingProfileTarget{
+			{Provider: "cerebras", VirtualModel: "light", Model: "glm-4.7-flash", Priority: 2, Enabled: true},
+			{Provider: "anthropic", VirtualModel: "light", Model: "claude-3-5-haiku-latest", Priority: 1, Enabled: true},
+		},
+	}}
+
+	decision, err := SimulateRoutingProfileDecision(profiles, "light/light", "chat", []string{"text"})
+	if err != nil {
+		t.Fatalf("unexpected simulation error: %v", err)
+	}
+	if decision.Primary != "anthropic/claude-3-5-haiku-latest" {
+		t.Fatalf("unexpected primary: %s", decision.Primary)
+	}
+	if len(decision.Fallbacks) != 1 || decision.Fallbacks[0] != "cerebras/glm-4.7-flash" {
+		t.Fatalf("unexpected fallbacks: %+v", decision.Fallbacks)
+	}
+}
