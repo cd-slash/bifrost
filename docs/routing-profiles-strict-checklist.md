@@ -23,11 +23,13 @@
 - [x] Add decision observability context attributes (`484ce351`).
 - [x] Add/expand tests for alias validation and simulation paths (`152354e7`, `f84033b7`, `6a40cf1c`, `572a7b45`).
 - [x] Reduce intrusive enterprise fallback messaging in OSS build (`35b7b192`).
+- [x] Replace reflection bridge in transport handler with typed routing-profile table integration (`91eef37a`).
+- [x] Add dedicated handler-level tests for routing profile CRUD/import/export/simulate HTTP routes (`72e2f9dd`).
+- [x] Move routing profile page from JSON-centric editing to structured form components (`d722ad68`).
+- [x] Add explicit rejection analytics emission for routing profile candidate evaluation (`b1e4c7b8`).
+- [x] Add parity test coverage between simulation output and pre-hook routing decisions (`792f1641`).
 
 ## Remaining
 
-- [ ] Replace reflection bridge in transport handler with fully typed routing-profile table integration once module API alignment is complete.
-- [ ] Add dedicated handler-level tests for routing profile CRUD/import/export/simulate HTTP routes.
-- [ ] Move routing profile page from JSON-centric editing to structured form components (targets, capabilities, rate hints).
-- [ ] Add explicit analytics/metrics emission for profile hit rate and target rejection reasons.
-- [ ] Add end-to-end integration tests proving runtime parity between simulate output and actual pre-hook routing decisions.
+- [ ] Optional: add full frontend component tests for the structured routing profile editor and target-row interactions.
+- [ ] Optional: emit dedicated telemetry counters (not just context attributes) into the metrics pipeline.
