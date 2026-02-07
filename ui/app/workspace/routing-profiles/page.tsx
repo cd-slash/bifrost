@@ -8,6 +8,7 @@ import {
 	useDeleteRoutingProfileMutation,
 	useExportRoutingProfilesQuery,
 	useGetRoutingProfilesQuery,
+	useSimulateRoutingProfileMutation,
 	useUpdateRoutingProfileMutation,
 } from "@/lib/store/apis/routingProfilesApi";
 import { RoutingProfile } from "@/lib/types/routingProfiles";
@@ -38,8 +39,12 @@ export default function RoutingProfilesPage() {
 	const [createRoutingProfile, { isLoading: isCreating }] = useCreateRoutingProfileMutation();
 	const [updateRoutingProfile, { isLoading: isUpdating }] = useUpdateRoutingProfileMutation();
 	const [deleteRoutingProfile, { isLoading: isDeleting }] = useDeleteRoutingProfileMutation();
+	const [simulateRoutingProfile, { isLoading: isSimulating }] = useSimulateRoutingProfileMutation();
 
 	const [createDraft, setCreateDraft] = useState<string>(prettyJson(defaultProfileDraft));
+	const [simulateDraft, setSimulateDraft] = useState<string>(prettyJson({ model: "light/light", request_type: "chat" }));
+	const [simulateResult, setSimulateResult] = useState<string>("");
+	const [simulateError, setSimulateError] = useState<string>("");
 	const [createError, setCreateError] = useState<string>("");
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [editingRows, setEditingRows] = useState<Record<string, string>>({});
@@ -86,6 +91,18 @@ export default function RoutingProfilesPage() {
 				...prev,
 				[id]: err?.data?.error?.message || err?.message || "Failed to delete routing profile",
 			}));
+		}
+	};
+
+	const onSimulate = async () => {
+		setSimulateError("");
+		setSimulateResult("");
+		try {
+			const parsed = JSON.parse(simulateDraft) as { model: string; request_type?: string; capabilities?: string[] };
+			const response = await simulateRoutingProfile(parsed).unwrap();
+			setSimulateResult(prettyJson(response));
+		} catch (err: any) {
+			setSimulateError(err?.data?.error?.message || err?.message || "Failed to simulate routing profile");
 		}
 	};
 
@@ -142,6 +159,18 @@ export default function RoutingProfilesPage() {
 						className="font-mono text-xs"
 					/>
 				) : null}
+			</div>
+
+			<div className="space-y-2 rounded-md border p-4">
+				<p className="text-sm font-medium">Simulate route (JSON)</p>
+				<Textarea value={simulateDraft} onChange={(e) => setSimulateDraft(e.target.value)} rows={6} className="font-mono text-xs" />
+				<div className="flex items-center gap-2">
+					<Button variant="outline" onClick={onSimulate} disabled={isSimulating}>
+						{isSimulating ? "Simulating..." : "Simulate"}
+					</Button>
+					{simulateError ? <span className="text-xs text-destructive">{simulateError}</span> : null}
+				</div>
+				{simulateResult ? <Textarea readOnly value={simulateResult} rows={10} className="font-mono text-xs" /> : null}
 			</div>
 
 			<div className="space-y-3">

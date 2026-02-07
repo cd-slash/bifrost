@@ -56,6 +56,16 @@ export const routingProfilesApi = baseApi.injectEndpoints({
 			}),
 			invalidatesTags: ["RoutingProfiles"],
 		}),
+		simulateRoutingProfile: builder.mutation<
+			{ profile: RoutingProfile; primary: string; fallbacks: string[]; candidates: Array<{ provider: string; model: string; priority: number; weight: number }> },
+			{ model: string; request_type?: string; capabilities?: string[] }
+		>({
+			query: (body) => ({
+				url: "/governance/routing-profiles/simulate",
+				method: "POST",
+				body,
+			}),
+		}),
 	}),
 });
 
@@ -66,4 +76,5 @@ export const {
 	useCreateRoutingProfileMutation,
 	useUpdateRoutingProfileMutation,
 	useDeleteRoutingProfileMutation,
+	useSimulateRoutingProfileMutation,
 } = routingProfilesApi;

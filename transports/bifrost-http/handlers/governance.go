@@ -252,6 +252,7 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 	// Routing Profiles (phase-1 scaffold: read-only endpoint)
 	r.GET("/api/governance/routing-profiles", lib.ChainMiddlewares(h.getRoutingProfiles, middlewares...))
 	r.GET("/api/governance/routing-profiles/export", lib.ChainMiddlewares(h.exportRoutingProfiles, middlewares...))
+	r.POST("/api/governance/routing-profiles/simulate", lib.ChainMiddlewares(h.simulateRoutingProfile, middlewares...))
 	r.GET("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.getRoutingProfile, middlewares...))
 	r.POST("/api/governance/routing-profiles", lib.ChainMiddlewares(h.createRoutingProfile, middlewares...))
 	r.PUT("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.updateRoutingProfile, middlewares...))
@@ -337,6 +338,158 @@ func (h *GovernanceHandler) exportRoutingProfiles(ctx *fasthttp.RequestCtx) {
 				"routing_profiles": profiles,
 			},
 		},
+	})
+}
+
+func (h *GovernanceHandler) simulateRoutingProfile(ctx *fasthttp.RequestCtx) {
+	var req struct {
+		Model        string   `json:"model"`
+		RequestType  string   `json:"request_type,omitempty"`
+		Capabilities []string `json:"capabilities,omitempty"`
+	}
+	if err := sonic.Unmarshal(ctx.PostBody(), &req); err != nil {
+		SendError(ctx, fasthttp.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		SendError(ctx, fasthttp.StatusBadRequest, "model is required")
+		return
+	}
+	providerAlias, virtualModel, ok := strings.Cut(model, "/")
+	if !ok || strings.TrimSpace(providerAlias) == "" || strings.TrimSpace(virtualModel) == "" {
+		SendError(ctx, fasthttp.StatusBadRequest, "model must be in the form virtual_provider/virtual_model")
+		return
+	}
+
+	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
+	if err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	var profile map[string]any
+	for _, candidate := range profiles {
+		if strings.EqualFold(strings.TrimSpace(fmt.Sprint(candidate["virtual_provider"])), providerAlias) {
+			profile = candidate
+			break
+		}
+	}
+	if profile == nil {
+		SendError(ctx, fasthttp.StatusNotFound, "No routing profile found for requested virtual provider")
+		return
+	}
+
+	targetsRaw, _ := profile["targets"].([]any)
+	type simulatedCandidate struct {
+		Provider string  `json:"provider"`
+		Model    string  `json:"model"`
+		Priority int     `json:"priority"`
+		Weight   float64 `json:"weight"`
+	}
+	candidates := make([]simulatedCandidate, 0)
+	for _, targetAny := range targetsRaw {
+		target, ok := targetAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		if enabled, ok := target["enabled"].(bool); ok && !enabled {
+			continue
+		}
+		provider := strings.TrimSpace(fmt.Sprint(target["provider"]))
+		if provider == "" {
+			continue
+		}
+		targetVirtualModel := strings.TrimSpace(fmt.Sprint(target["virtual_model"]))
+		if targetVirtualModel != "" && targetVirtualModel != "*" && !strings.EqualFold(targetVirtualModel, virtualModel) {
+			continue
+		}
+		if requestTypes, ok := target["request_types"].([]any); ok && len(requestTypes) > 0 {
+			matchedRequestType := false
+			for _, rt := range requestTypes {
+				if strings.EqualFold(strings.TrimSpace(fmt.Sprint(rt)), req.RequestType) {
+					matchedRequestType = true
+					break
+				}
+			}
+			if !matchedRequestType {
+				continue
+			}
+		}
+		if capabilities, ok := target["capabilities"].([]any); ok && len(capabilities) > 0 {
+			matchedCapability := false
+			for _, capability := range capabilities {
+				for _, requested := range req.Capabilities {
+					if strings.EqualFold(strings.TrimSpace(fmt.Sprint(capability)), strings.TrimSpace(requested)) {
+						matchedCapability = true
+						break
+					}
+				}
+				if matchedCapability {
+					break
+				}
+			}
+			if !matchedCapability {
+				continue
+			}
+		}
+
+		concreteModel := strings.TrimSpace(fmt.Sprint(target["model"]))
+		if concreteModel == "" || concreteModel == "<nil>" {
+			concreteModel = strings.TrimSpace(virtualModel)
+		}
+
+		priority := 0
+		if p, ok := target["priority"].(float64); ok {
+			priority = int(p)
+		}
+		weight := 1.0
+		if w, ok := target["weight"].(float64); ok {
+			weight = w
+		}
+
+		candidates = append(candidates, simulatedCandidate{
+			Provider: provider,
+			Model:    concreteModel,
+			Priority: priority,
+			Weight:   weight,
+		})
+	}
+
+	strategy := strings.TrimSpace(fmt.Sprint(profile["strategy"]))
+	if strategy == "weighted" {
+		sort.SliceStable(candidates, func(i, j int) bool {
+			if candidates[i].Weight == candidates[j].Weight {
+				return candidates[i].Priority < candidates[j].Priority
+			}
+			return candidates[i].Weight > candidates[j].Weight
+		})
+	} else {
+		sort.SliceStable(candidates, func(i, j int) bool {
+			if candidates[i].Priority == candidates[j].Priority {
+				return candidates[i].Weight > candidates[j].Weight
+			}
+			return candidates[i].Priority < candidates[j].Priority
+		})
+	}
+
+	primary := ""
+	fallbacks := make([]string, 0, len(candidates))
+	for i, candidate := range candidates {
+		modelRef := candidate.Provider + "/" + candidate.Model
+		if i == 0 {
+			primary = modelRef
+			continue
+		}
+		fallbacks = append(fallbacks, modelRef)
+	}
+
+	SendJSON(ctx, map[string]any{
+		"profile":    profile,
+		"primary":    primary,
+		"fallbacks":  fallbacks,
+		"candidates": candidates,
 	})
 }
 
