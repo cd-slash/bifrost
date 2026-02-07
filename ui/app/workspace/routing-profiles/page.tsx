@@ -14,6 +14,7 @@ import {
 } from "@/lib/store/apis/routingProfilesApi";
 import { RoutingProfile, RoutingProfileTarget } from "@/lib/types/routingProfiles";
 import { useEffect, useMemo, useState } from "react";
+import { RoutingProfileTargetsEditor } from "./components/routingProfileTargetsEditor";
 
 function emptyTarget(): RoutingProfileTarget {
 	return { provider: "", model: "", virtual_model: "", priority: 1, enabled: true, capabilities: [], request_types: [] };
@@ -30,17 +31,6 @@ function defaultCreateProfile(): RoutingProfile {
 			{ provider: "cerebras", model: "glm-4.7-flash", priority: 2, enabled: true, capabilities: ["text"] },
 		],
 	};
-}
-
-function splitCSV(value: string): string[] {
-	return value
-		.split(",")
-		.map((v) => v.trim())
-		.filter(Boolean);
-}
-
-function joinCSV(value?: string[]): string {
-	return (value || []).join(", ");
 }
 
 export default function RoutingProfilesPage() {
@@ -146,17 +136,6 @@ export default function RoutingProfilesPage() {
 		}
 	};
 
-	const updateTarget = (
-		profile: RoutingProfile,
-		setProfile: (next: RoutingProfile) => void,
-		index: number,
-		patch: Partial<RoutingProfileTarget>
-	) => {
-		const nextTargets = [...profile.targets];
-		nextTargets[index] = { ...nextTargets[index], ...patch };
-		setProfile({ ...profile, targets: nextTargets });
-	};
-
 	if (isLoading) {
 		return <div className="mx-auto w-full max-w-7xl text-sm text-muted-foreground">Loading routing profiles...</div>;
 	}
@@ -189,18 +168,11 @@ export default function RoutingProfilesPage() {
 				</div>
 				<div className="space-y-2">
 					<p className="text-xs text-muted-foreground">Targets</p>
-					{createForm.targets.map((target, idx) => (
-						<div key={`create-${target.provider}-${target.model}-${target.virtual_model}-${idx}`} className="grid grid-cols-1 gap-2 rounded border p-2 md:grid-cols-7">
-							<Input value={target.provider} onChange={(e) => updateTarget(createForm, setCreateForm, idx, { provider: e.target.value })} placeholder="Provider" />
-							<Input value={target.virtual_model || ""} onChange={(e) => updateTarget(createForm, setCreateForm, idx, { virtual_model: e.target.value })} placeholder="Virtual model" />
-							<Input value={target.model || ""} onChange={(e) => updateTarget(createForm, setCreateForm, idx, { model: e.target.value })} placeholder="Model" />
-							<Input value={String(target.priority || 0)} onChange={(e) => updateTarget(createForm, setCreateForm, idx, { priority: Number(e.target.value || "0") })} placeholder="Priority" />
-							<Input value={joinCSV(target.capabilities)} onChange={(e) => updateTarget(createForm, setCreateForm, idx, { capabilities: splitCSV(e.target.value) })} placeholder="Capabilities csv" />
-							<Input value={joinCSV(target.request_types)} onChange={(e) => updateTarget(createForm, setCreateForm, idx, { request_types: splitCSV(e.target.value) })} placeholder="Request types csv" />
-							<Button variant="outline" onClick={() => setCreateForm({ ...createForm, targets: createForm.targets.filter((_, t) => t !== idx) })}>Remove</Button>
-						</div>
-					))}
-					<Button variant="outline" onClick={() => setCreateForm({ ...createForm, targets: [...createForm.targets, emptyTarget()] })}>Add target</Button>
+					<RoutingProfileTargetsEditor
+						targets={createForm.targets}
+						onChange={(targets) => setCreateForm({ ...createForm, targets })}
+						idPrefix="create"
+					/>
 				</div>
 				<div className="flex items-center gap-2">
 					<Button onClick={onCreate} disabled={isCreating || isUpdating || isDeleting || isFetching}>{isCreating ? "Creating..." : "Create profile"}</Button>
@@ -249,18 +221,11 @@ export default function RoutingProfilesPage() {
 								<Input value={editable.strategy || "ordered_failover"} onChange={(e) => setProfileForms((prev) => ({ ...prev, [profile.id!]: { ...editable, strategy: e.target.value as RoutingProfile["strategy"] } }))} />
 								<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editable.enabled} onChange={(e) => setProfileForms((prev) => ({ ...prev, [profile.id!]: { ...editable, enabled: e.target.checked } }))} /> Enabled</label>
 							</div>
-							{editable.targets.map((target, idx) => (
-								<div key={`${profile.id}-t-${target.provider}-${target.model}-${target.virtual_model}-${idx}`} className="grid grid-cols-1 gap-2 rounded border p-2 md:grid-cols-7">
-									<Input value={target.provider} onChange={(e) => updateTarget(editable, (next) => setProfileForms((prev) => ({ ...prev, [profile.id!]: next })), idx, { provider: e.target.value })} placeholder="Provider" />
-									<Input value={target.virtual_model || ""} onChange={(e) => updateTarget(editable, (next) => setProfileForms((prev) => ({ ...prev, [profile.id!]: next })), idx, { virtual_model: e.target.value })} placeholder="Virtual model" />
-									<Input value={target.model || ""} onChange={(e) => updateTarget(editable, (next) => setProfileForms((prev) => ({ ...prev, [profile.id!]: next })), idx, { model: e.target.value })} placeholder="Model" />
-									<Input value={String(target.priority || 0)} onChange={(e) => updateTarget(editable, (next) => setProfileForms((prev) => ({ ...prev, [profile.id!]: next })), idx, { priority: Number(e.target.value || "0") })} placeholder="Priority" />
-									<Input value={joinCSV(target.capabilities)} onChange={(e) => updateTarget(editable, (next) => setProfileForms((prev) => ({ ...prev, [profile.id!]: next })), idx, { capabilities: splitCSV(e.target.value) })} placeholder="Capabilities csv" />
-									<Input value={joinCSV(target.request_types)} onChange={(e) => updateTarget(editable, (next) => setProfileForms((prev) => ({ ...prev, [profile.id!]: next })), idx, { request_types: splitCSV(e.target.value) })} placeholder="Request types csv" />
-									<Button variant="outline" onClick={() => setProfileForms((prev) => ({ ...prev, [profile.id!]: { ...editable, targets: editable.targets.filter((_, t) => t !== idx) } }))}>Remove</Button>
-								</div>
-							))}
-							<Button variant="outline" onClick={() => setProfileForms((prev) => ({ ...prev, [profile.id!]: { ...editable, targets: [...editable.targets, emptyTarget()] } }))}>Add target</Button>
+							<RoutingProfileTargetsEditor
+								targets={editable.targets}
+								onChange={(targets) => setProfileForms((prev) => ({ ...prev, [profile.id!]: { ...editable, targets } }))}
+								idPrefix={`edit-${profile.id}`}
+							/>
 							<div className="flex items-center gap-2">
 								<Button variant="outline" onClick={() => onSave(profile.id!)} disabled={isCreating || isUpdating || isDeleting || isFetching}>Save</Button>
 								<Button variant="destructive" onClick={() => onDelete(profile.id!)} disabled={isCreating || isUpdating || isDeleting || isFetching}>Delete</Button>
