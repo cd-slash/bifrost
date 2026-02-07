@@ -102,8 +102,9 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 	}
 
 	capabilities := extractRequestCapabilities(body)
-	candidates := p.profileCandidates(ctx, profile, baseModel, requestType, capabilities, virtualKey)
+	candidates, rejectionReasons := p.profileCandidates(ctx, profile, baseModel, requestType, capabilities, virtualKey)
 	if len(candidates) == 0 {
+		ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-rejections"), rejectionReasons)
 		return body, false, nil
 	}
 
@@ -127,6 +128,7 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-primary"), primary.provider+"/"+primary.model)
 	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-candidates"), len(candidates))
 	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-fallback-count"), len(fallbacks))
+	ctx.SetValue(schemas.BifrostContextKey("bf-governance-routing-profile-rejections"), rejectionReasons)
 
 	return body, true, nil
 }
@@ -152,29 +154,35 @@ func (p *GovernancePlugin) findRoutingProfile(alias schemas.ModelProvider) *Rout
 	return nil
 }
 
-func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profile *RoutingProfile, baseModel, requestType string, capabilities []string, virtualKey *configstoreTables.TableVirtualKey) []profileCandidate {
+func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profile *RoutingProfile, baseModel, requestType string, capabilities []string, virtualKey *configstoreTables.TableVirtualKey) ([]profileCandidate, map[string]int) {
 	if profile == nil {
-		return nil
+		return nil, map[string]int{"profile_missing": 1}
 	}
 
+	rejectionReasons := map[string]int{}
 	out := make([]profileCandidate, 0, len(profile.Targets))
 	for _, target := range profile.Targets {
 		if !target.Enabled || target.Provider == "" {
+			rejectionReasons["target_disabled_or_provider_missing"]++
 			continue
 		}
 		if !matchesVirtualModel(target.VirtualModel, baseModel) {
+			rejectionReasons["virtual_model_mismatch"]++
 			continue
 		}
 		if len(target.RequestTypes) > 0 && requestType != "" && !containsFold(target.RequestTypes, requestType) {
+			rejectionReasons["request_type_mismatch"]++
 			continue
 		}
 		if len(target.Capabilities) > 0 && !matchesCapabilities(target.Capabilities, capabilities) {
+			rejectionReasons["capability_mismatch"]++
 			continue
 		}
 
 		provider := schemas.ModelProvider(target.Provider)
 		if p.inMemoryStore != nil {
 			if _, ok := p.inMemoryStore.GetConfiguredProviders()[provider]; !ok {
+				rejectionReasons["provider_not_configured"]++
 				continue
 			}
 		}
@@ -186,6 +194,7 @@ func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profil
 		if p.modelCatalog != nil {
 			refined, err := p.modelCatalog.RefineModelForProvider(provider, candidateModel)
 			if err != nil {
+				rejectionReasons["model_refine_failed"]++
 				p.logger.Debug("[RoutingProfile] skip target %s/%s refine failed: %v", target.Provider, candidateModel, err)
 				continue
 			}
@@ -195,12 +204,15 @@ func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profil
 		status := p.store.GetBudgetAndRateLimitStatus(ctx, candidateModel, provider, virtualKey, nil, nil, nil)
 		if status != nil {
 			if !withinThreshold(status.RateLimitRequestPercentUsed, target.RateLimit, "request") {
+				rejectionReasons["request_threshold_exceeded"]++
 				continue
 			}
 			if !withinThreshold(status.RateLimitTokenPercentUsed, target.RateLimit, "token") {
+				rejectionReasons["token_threshold_exceeded"]++
 				continue
 			}
 			if !withinThreshold(status.BudgetPercentUsed, target.RateLimit, "budget") {
+				rejectionReasons["budget_threshold_exceeded"]++
 				continue
 			}
 		}
@@ -218,7 +230,7 @@ func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profil
 	}
 
 	if len(out) == 0 {
-		return out
+		return out, rejectionReasons
 	}
 
 	strategy := profile.Strategy
@@ -243,7 +255,7 @@ func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profil
 		})
 	}
 
-	return out
+	return out, rejectionReasons
 }
 
 func containsFold(values []string, value string) bool {
