@@ -427,10 +427,13 @@ func (h *GovernanceHandler) deleteRoutingProfile(ctx *fasthttp.RequestCtx) {
 }
 
 func (h *GovernanceHandler) readRoutingProfilesFromGovernancePluginConfig(ctx context.Context) ([]map[string]any, error) {
+	tableSupported := false
 	if tableProfiles, supported, err := h.tryReadRoutingProfilesFromTable(ctx); err != nil {
 		return nil, err
 	} else if supported && len(tableProfiles) > 0 {
 		return tableProfiles, nil
+	} else {
+		tableSupported = supported
 	}
 
 	plugin, err := h.configStore.GetPlugin(ctx, governance.PluginName)
@@ -456,6 +459,13 @@ func (h *GovernanceHandler) readRoutingProfilesFromGovernancePluginConfig(ctx co
 	if parsed.RoutingProfiles == nil {
 		return []map[string]any{}, nil
 	}
+
+	if tableSupported && len(parsed.RoutingProfiles) > 0 {
+		if err := h.tryWriteRoutingProfilesToTable(ctx, parsed.RoutingProfiles); err != nil {
+			return nil, err
+		}
+	}
+
 	return parsed.RoutingProfiles, nil
 }
 
