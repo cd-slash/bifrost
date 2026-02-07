@@ -284,6 +284,7 @@ func matchesVirtualModel(targetVirtualModel string, requestedVirtualModel string
 
 func (p *GovernancePlugin) validateRoutingProfiles() error {
 	seenVirtualProviders := map[string]struct{}{}
+	seenProfileNames := map[string]struct{}{}
 	realProviders := map[string]struct{}{}
 	if p.inMemoryStore != nil {
 		for provider := range p.inMemoryStore.GetConfiguredProviders() {
@@ -295,6 +296,11 @@ func (p *GovernancePlugin) validateRoutingProfiles() error {
 		if strings.TrimSpace(profile.Name) == "" {
 			return fmt.Errorf("routing profile name is required")
 		}
+		nameKey := strings.ToLower(strings.TrimSpace(profile.Name))
+		if _, exists := seenProfileNames[nameKey]; exists {
+			return fmt.Errorf("routing profile name %s must be unique", profile.Name)
+		}
+		seenProfileNames[nameKey] = struct{}{}
 		virtualProvider := strings.ToLower(strings.TrimSpace(profile.VirtualProvider))
 		if virtualProvider == "" {
 			return fmt.Errorf("routing profile %s virtual_provider is required", profile.Name)

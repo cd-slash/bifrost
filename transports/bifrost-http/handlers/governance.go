@@ -688,11 +688,27 @@ func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Cont
 	}
 
 	seenVirtualProviders := map[string]struct{}{}
+	seenProfileNames := map[string]struct{}{}
+	seenProfileIDs := map[string]struct{}{}
 	for _, profile := range profiles {
+		id := strings.TrimSpace(fmt.Sprint(profile["id"]))
+		if id == "" || id == "<nil>" {
+			return fmt.Errorf("routing profile id is required")
+		}
+		if _, exists := seenProfileIDs[id]; exists {
+			return fmt.Errorf("routing profile id %q must be unique", id)
+		}
+		seenProfileIDs[id] = struct{}{}
+
 		name := strings.TrimSpace(fmt.Sprint(profile["name"]))
 		if name == "" {
 			return fmt.Errorf("routing profile name is required")
 		}
+		nameKey := strings.ToLower(name)
+		if _, exists := seenProfileNames[nameKey]; exists {
+			return fmt.Errorf("routing profile name %q must be unique", name)
+		}
+		seenProfileNames[nameKey] = struct{}{}
 
 		strategy := strings.TrimSpace(fmt.Sprint(profile["strategy"]))
 		if strategy != "" && strategy != "ordered_failover" && strategy != "weighted" {

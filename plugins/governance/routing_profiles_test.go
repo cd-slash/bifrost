@@ -138,6 +138,37 @@ func TestValidateRoutingProfilesRejectsInvalidStrategy(t *testing.T) {
 	}
 }
 
+func TestValidateRoutingProfilesRejectsDuplicateNames(t *testing.T) {
+	t.Parallel()
+
+	plugin := &GovernancePlugin{
+		routingProfiles: []RoutingProfile{
+			{
+				Name:            "Light",
+				VirtualProvider: "light",
+				Enabled:         true,
+				Targets: []RoutingProfileTarget{{
+					Provider: "cerebras",
+					Enabled:  true,
+				}},
+			},
+			{
+				Name:            "LIGHT",
+				VirtualProvider: "fast",
+				Enabled:         true,
+				Targets: []RoutingProfileTarget{{
+					Provider: "openai",
+					Enabled:  true,
+				}},
+			},
+		},
+	}
+
+	if err := plugin.validateRoutingProfiles(); err == nil {
+		t.Fatalf("expected duplicate profile name validation error")
+	}
+}
+
 func TestRoutingProfilesFromConfigPrefersPluginConfig(t *testing.T) {
 	t.Parallel()
 
