@@ -233,3 +233,38 @@ func TestRoutingProfilesFromConfigFallsBackToGovernanceConfig(t *testing.T) {
 		t.Fatalf("expected virtual provider light, got %s", profiles[0].VirtualProvider)
 	}
 }
+
+func TestMatchesCapabilities(t *testing.T) {
+	t.Parallel()
+
+	if !matchesCapabilities([]string{"vision"}, []string{"text", "vision"}) {
+		t.Fatalf("expected capability match for vision")
+	}
+	if matchesCapabilities([]string{"audio"}, []string{"text", "vision"}) {
+		t.Fatalf("did not expect capability match for audio")
+	}
+}
+
+func TestExtractRequestCapabilitiesDetectsVision(t *testing.T) {
+	t.Parallel()
+
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{"type": "text", "text": "describe"},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/img.png"}},
+				},
+			},
+		},
+	}
+
+	capabilities := extractRequestCapabilities(body)
+	if !containsFold(capabilities, "text") {
+		t.Fatalf("expected text capability")
+	}
+	if !containsFold(capabilities, "vision") {
+		t.Fatalf("expected vision capability")
+	}
+}

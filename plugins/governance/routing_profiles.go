@@ -101,7 +101,8 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 		}
 	}
 
-	candidates := p.profileCandidates(ctx, profile, baseModel, requestType, virtualKey)
+	capabilities := extractRequestCapabilities(body)
+	candidates := p.profileCandidates(ctx, profile, baseModel, requestType, capabilities, virtualKey)
 	if len(candidates) == 0 {
 		return body, false, nil
 	}
@@ -148,7 +149,7 @@ func (p *GovernancePlugin) findRoutingProfile(alias schemas.ModelProvider) *Rout
 	return nil
 }
 
-func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profile *RoutingProfile, baseModel, requestType string, virtualKey *configstoreTables.TableVirtualKey) []profileCandidate {
+func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profile *RoutingProfile, baseModel, requestType string, capabilities []string, virtualKey *configstoreTables.TableVirtualKey) []profileCandidate {
 	if profile == nil {
 		return nil
 	}
@@ -162,6 +163,9 @@ func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profil
 			continue
 		}
 		if len(target.RequestTypes) > 0 && requestType != "" && !containsFold(target.RequestTypes, requestType) {
+			continue
+		}
+		if len(target.Capabilities) > 0 && !matchesCapabilities(target.Capabilities, capabilities) {
 			continue
 		}
 
@@ -270,6 +274,55 @@ func withinThreshold(percent float64, hint *RateHint, metric string) bool {
 		return false
 	}
 	return percent < *threshold
+}
+
+func matchesCapabilities(targetCapabilities []string, requestCapabilities []string) bool {
+	if len(targetCapabilities) == 0 {
+		return true
+	}
+	if len(requestCapabilities) == 0 {
+		return false
+	}
+	for _, capability := range targetCapabilities {
+		if containsFold(requestCapabilities, capability) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractRequestCapabilities(body map[string]any) []string {
+	capabilities := []string{"text"}
+
+	messages, ok := body["messages"].([]any)
+	if !ok {
+		return capabilities
+	}
+
+	for _, messageAny := range messages {
+		message, ok := messageAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		contentItems, ok := message["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, contentAny := range contentItems {
+			content, ok := contentAny.(map[string]any)
+			if !ok {
+				continue
+			}
+			typeValue := strings.ToLower(strings.TrimSpace(fmt.Sprint(content["type"])))
+			if typeValue == "image_url" || typeValue == "input_image" || typeValue == "image" {
+				if !containsFold(capabilities, "vision") {
+					capabilities = append(capabilities, "vision")
+				}
+			}
+		}
+	}
+
+	return capabilities
 }
 
 func matchesVirtualModel(targetVirtualModel string, requestedVirtualModel string) bool {
