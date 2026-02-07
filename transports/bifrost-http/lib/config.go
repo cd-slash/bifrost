@@ -1181,6 +1181,10 @@ func mergeGovernanceConfig(ctx context.Context, config *Config, configData *Conf
 			logger.Fatal("failed to sync governance config: %v", err)
 		}
 	}
+
+	if err := syncRoutingProfilesPluginConfig(ctx, config, configData.Governance, governanceConfig); err != nil {
+		logger.Warn("failed to sync routing profiles config: %v", err)
+	}
 }
 
 // updateGovernanceConfigInStore updates governance config items in the store
@@ -1422,6 +1426,101 @@ func createGovernanceConfigInStore(ctx context.Context, config *Config) {
 	}); err != nil {
 		logger.Warn("failed to update governance config: %v", err)
 	}
+
+	if err := syncRoutingProfilesPluginConfig(ctx, config, config.GovernanceConfig, nil); err != nil {
+		logger.Warn("failed to sync routing profiles config: %v", err)
+	}
+}
+
+func syncRoutingProfilesPluginConfig(ctx context.Context, config *Config, preferredSource any, fallbackSource any) error {
+	if config == nil || config.ConfigStore == nil {
+		return nil
+	}
+
+	profiles, err := extractRoutingProfiles(preferredSource)
+	if err != nil {
+		return err
+	}
+	if len(profiles) == 0 {
+		profiles, err = extractRoutingProfiles(fallbackSource)
+		if err != nil {
+			return err
+		}
+	}
+	if len(profiles) == 0 {
+		return nil
+	}
+
+	plugin, err := config.ConfigStore.GetPlugin(ctx, governance.PluginName)
+	if err != nil && !errors.Is(err, configstore.ErrNotFound) {
+		return err
+	}
+
+	pluginConfig := map[string]any{}
+	enabled := true
+	path := (*string)(nil)
+	isCustom := false
+	if plugin != nil {
+		if existing, ok := plugin.Config.(map[string]any); ok && existing != nil {
+			for k, v := range existing {
+				pluginConfig[k] = v
+			}
+		}
+		enabled = plugin.Enabled
+		path = plugin.Path
+		isCustom = plugin.IsCustom
+	}
+
+	pluginConfig["routing_profiles"] = profiles
+
+	if plugin == nil {
+		return config.ConfigStore.CreatePlugin(ctx, &configstoreTables.TablePlugin{
+			Name:     governance.PluginName,
+			Enabled:  enabled,
+			Config:   pluginConfig,
+			Path:     path,
+			IsCustom: isCustom,
+		})
+	}
+
+	return config.ConfigStore.UpdatePlugin(ctx, &configstoreTables.TablePlugin{
+		Name:     governance.PluginName,
+		Enabled:  enabled,
+		Config:   pluginConfig,
+		Path:     path,
+		IsCustom: isCustom,
+	})
+}
+
+func extractRoutingProfiles(source any) ([]map[string]any, error) {
+	if source == nil {
+		return nil, nil
+	}
+	v := reflect.ValueOf(source)
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil, nil
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return nil, nil
+	}
+
+	f := v.FieldByName("RoutingProfiles")
+	if !f.IsValid() || f.Len() == 0 {
+		return nil, nil
+	}
+
+	payload, err := sonic.Marshal(f.Interface())
+	if err != nil {
+		return nil, err
+	}
+	var out []map[string]any
+	if err := sonic.Unmarshal(payload, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // isBcryptHash checks if a string looks like a bcrypt hash
@@ -1449,7 +1548,7 @@ func preserveEnvVar(source *schemas.EnvVar, value string) *schemas.EnvVar {
 // loadAuthConfigFromFile loads auth config from file.
 // File config (configData) always takes precedence over DB config.
 func loadAuthConfigFromFile(ctx context.Context, config *Config, configData *ConfigData) {
-	hasFileConfig := configData != nil && configData.AuthConfig != nil	
+	hasFileConfig := configData != nil && configData.AuthConfig != nil
 	if !hasFileConfig && (config.GovernanceConfig == nil || config.GovernanceConfig.AuthConfig == nil) {
 		return
 	}

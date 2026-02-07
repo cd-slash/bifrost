@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -208,7 +209,7 @@ func Init(
 		logger:          logger,
 		isVkMandatory:   isVkMandatory,
 		inMemoryStore:   inMemoryStore,
-		routingProfiles: governanceConfigFromPlugin(config),
+		routingProfiles: routingProfilesFromConfig(config, governanceConfig),
 	}
 	if err := plugin.validateRoutingProfiles(); err != nil {
 		return nil, fmt.Errorf("invalid routing profiles config: %w", err)
@@ -292,7 +293,7 @@ func InitFromStore(
 		logger:          logger,
 		inMemoryStore:   inMemoryStore,
 		isVkMandatory:   isVkMandatory,
-		routingProfiles: governanceConfigFromPlugin(config),
+		routingProfiles: routingProfilesFromConfig(config, nil),
 	}
 	if err := plugin.validateRoutingProfiles(); err != nil {
 		return nil, fmt.Errorf("invalid routing profiles config: %w", err)
@@ -300,11 +301,42 @@ func InitFromStore(
 	return plugin, nil
 }
 
-func governanceConfigFromPlugin(config *Config) []RoutingProfile {
-	if config == nil {
+func routingProfilesFromConfig(config *Config, governanceConfig *configstore.GovernanceConfig) []RoutingProfile {
+	if config != nil && len(config.RoutingProfiles) > 0 {
+		return config.RoutingProfiles
+	}
+
+	if governanceConfig == nil {
 		return nil
 	}
-	return config.RoutingProfiles
+
+	v := reflect.ValueOf(governanceConfig)
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	field := v.FieldByName("RoutingProfiles")
+	if !field.IsValid() || field.Len() == 0 {
+		return nil
+	}
+
+	payload, err := sonic.Marshal(field.Interface())
+	if err != nil {
+		return nil
+	}
+
+	out := make([]RoutingProfile, 0)
+	if err := sonic.Unmarshal(payload, &out); err != nil {
+		return nil
+	}
+
+	return out
 }
 
 // GetName returns the name of the plugin

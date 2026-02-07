@@ -137,3 +137,26 @@ func TestValidateRoutingProfilesRejectsInvalidStrategy(t *testing.T) {
 		t.Fatalf("expected invalid strategy validation error")
 	}
 }
+
+func TestRoutingProfilesFromConfigPrefersPluginConfig(t *testing.T) {
+	t.Parallel()
+
+	profiles := routingProfilesFromConfig(&Config{
+		RoutingProfiles: []RoutingProfile{{
+			Name:            "Light",
+			VirtualProvider: "light",
+			Enabled:         true,
+			Targets: []RoutingProfileTarget{{
+				Provider: "cerebras",
+				Enabled:  true,
+			}},
+		}},
+	}, &configstore.GovernanceConfig{})
+
+	if len(profiles) != 1 {
+		t.Fatalf("expected 1 routing profile from plugin config, got %d", len(profiles))
+	}
+	if profiles[0].VirtualProvider != "light" {
+		t.Fatalf("expected virtual provider light, got %s", profiles[0].VirtualProvider)
+	}
+}
