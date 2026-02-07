@@ -96,3 +96,23 @@ func TestValidateRoutingProfilesRejectsWildcardMix(t *testing.T) {
 		t.Fatalf("expected wildcard and named virtual_model mix validation error")
 	}
 }
+
+func TestValidateRoutingProfilesRejectsDuplicateVirtualModelAliases(t *testing.T) {
+	t.Parallel()
+
+	plugin := &GovernancePlugin{
+		routingProfiles: []RoutingProfile{{
+			Name:            "Light",
+			VirtualProvider: "light",
+			Enabled:         true,
+			Targets: []RoutingProfileTarget{
+				{Provider: "cerebras", VirtualModel: "light", Model: "glm-4.7-flash", Enabled: true},
+				{Provider: "anthropic", VirtualModel: "LIGHT", Model: "claude-3-5-haiku-latest", Enabled: true},
+			},
+		}},
+	}
+
+	if err := plugin.validateRoutingProfiles(); err == nil {
+		t.Fatalf("expected duplicate virtual_model alias validation error")
+	}
+}

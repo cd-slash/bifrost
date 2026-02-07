@@ -316,6 +316,7 @@ func (p *GovernancePlugin) validateRoutingProfiles() error {
 
 		hasWildcardVirtualModel := false
 		hasNamedVirtualModel := false
+		seenVirtualModels := map[string]struct{}{}
 		for _, target := range profile.Targets {
 			if strings.TrimSpace(target.VirtualModel) != "" && strings.TrimSpace(target.Model) == "" {
 				return fmt.Errorf("routing profile %s target for virtual_model %s must define model", profile.Name, target.VirtualModel)
@@ -325,6 +326,11 @@ func (p *GovernancePlugin) validateRoutingProfiles() error {
 			}
 			if vm := strings.TrimSpace(target.VirtualModel); vm != "" && vm != "*" {
 				hasNamedVirtualModel = true
+				key := strings.ToLower(vm)
+				if _, exists := seenVirtualModels[key]; exists {
+					return fmt.Errorf("routing profile %s has duplicate virtual_model alias %s", profile.Name, vm)
+				}
+				seenVirtualModels[key] = struct{}{}
 			}
 		}
 		if hasWildcardVirtualModel && hasNamedVirtualModel {
