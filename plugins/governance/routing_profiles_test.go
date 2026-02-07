@@ -295,6 +295,32 @@ func TestSimulateRoutingProfileDecision(t *testing.T) {
 	}
 }
 
+func TestSimulateRoutingProfileDecisionErrorsOnUnknownAlias(t *testing.T) {
+	t.Parallel()
+
+	profiles := []RoutingProfile{{
+		Name:            "Light",
+		VirtualProvider: "light",
+		Enabled:         true,
+		Targets: []RoutingProfileTarget{{
+			Provider: "cerebras",
+			Enabled:  true,
+		}},
+	}}
+
+	if _, err := SimulateRoutingProfileDecision(profiles, "fast/light", "chat", []string{"text"}); err == nil {
+		t.Fatalf("expected error for unknown virtual provider")
+	}
+}
+
+func TestSimulateRoutingProfileDecisionErrorsOnInvalidModel(t *testing.T) {
+	t.Parallel()
+
+	if _, err := SimulateRoutingProfileDecision(nil, "invalid", "chat", nil); err == nil {
+		t.Fatalf("expected error for invalid model format")
+	}
+}
+
 func TestSetRoutingProfilesValidatesInput(t *testing.T) {
 	t.Parallel()
 
