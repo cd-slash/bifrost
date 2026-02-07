@@ -250,6 +250,7 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 
 	// Routing Profiles (phase-1 scaffold: read-only endpoint)
 	r.GET("/api/governance/routing-profiles", lib.ChainMiddlewares(h.getRoutingProfiles, middlewares...))
+	r.GET("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.getRoutingProfile, middlewares...))
 	r.POST("/api/governance/routing-profiles", lib.ChainMiddlewares(h.createRoutingProfile, middlewares...))
 	r.PUT("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.updateRoutingProfile, middlewares...))
 	r.DELETE("/api/governance/routing-profiles/{profile_id}", lib.ChainMiddlewares(h.deleteRoutingProfile, middlewares...))
@@ -275,6 +276,29 @@ func (h *GovernanceHandler) getRoutingProfiles(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	SendJSON(ctx, map[string]any{"profiles": profiles, "count": len(profiles)})
+}
+
+func (h *GovernanceHandler) getRoutingProfile(ctx *fasthttp.RequestCtx) {
+	profileID := strings.TrimSpace(fmt.Sprint(ctx.UserValue("profile_id")))
+	if profileID == "" {
+		SendError(ctx, fasthttp.StatusBadRequest, "Missing profile_id")
+		return
+	}
+
+	profiles, err := h.readRoutingProfilesFromGovernancePluginConfig(ctx)
+	if err != nil {
+		SendError(ctx, 500, err.Error())
+		return
+	}
+
+	for _, profile := range profiles {
+		if strings.TrimSpace(fmt.Sprint(profile["id"])) == profileID {
+			SendJSON(ctx, map[string]any{"profile": profile})
+			return
+		}
+	}
+
+	SendError(ctx, fasthttp.StatusNotFound, "Routing profile not found")
 }
 
 func (h *GovernanceHandler) createRoutingProfile(ctx *fasthttp.RequestCtx) {
@@ -508,6 +532,7 @@ func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Cont
 		targetsRaw, _ := profile["targets"].([]any)
 		hasWildcardVirtualModel := false
 		hasNamedVirtualModel := false
+		seenVirtualModels := map[string]struct{}{}
 		for _, targetAny := range targetsRaw {
 			target, ok := targetAny.(map[string]any)
 			if !ok {
@@ -523,6 +548,11 @@ func (h *GovernanceHandler) validateRoutingProfilesForConflicts(ctx context.Cont
 			}
 			if virtualModel != "" && virtualModel != "<nil>" && virtualModel != "*" {
 				hasNamedVirtualModel = true
+				key := strings.ToLower(virtualModel)
+				if _, exists := seenVirtualModels[key]; exists {
+					return fmt.Errorf("virtual_model %q must be unique within virtual_provider %q", virtualModel, virtualProvider)
+				}
+				seenVirtualModels[key] = struct{}{}
 			}
 		}
 		if hasWildcardVirtualModel && hasNamedVirtualModel {

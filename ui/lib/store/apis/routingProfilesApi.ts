@@ -11,6 +11,14 @@ export const routingProfilesApi = baseApi.injectEndpoints({
 			transformResponse: (response: GetRoutingProfilesResponse) => response.profiles || [],
 			providesTags: ["RoutingProfiles"],
 		}),
+		getRoutingProfile: builder.query<RoutingProfile, string>({
+			query: (id) => ({
+				url: `/governance/routing-profiles/${id}`,
+				method: "GET",
+			}),
+			transformResponse: (response: { profile: RoutingProfile }) => response.profile,
+			providesTags: (result, error, id) => [{ type: "RoutingProfiles", id }],
+		}),
 		createRoutingProfile: builder.mutation<RoutingProfile, Partial<RoutingProfile>>({
 			query: (body) => ({
 				url: "/governance/routing-profiles",
@@ -40,6 +48,7 @@ export const routingProfilesApi = baseApi.injectEndpoints({
 
 export const {
 	useGetRoutingProfilesQuery,
+	useGetRoutingProfileQuery,
 	useCreateRoutingProfileMutation,
 	useUpdateRoutingProfileMutation,
 	useDeleteRoutingProfileMutation,
