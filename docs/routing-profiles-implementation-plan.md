@@ -102,8 +102,9 @@ Resolution order:
 
 - Phase 1 routing-profile resolution is active in governance HTTP pre-hook.
 - Phase 1 CRUD is available via `/api/governance/routing-profiles` endpoints.
-- Phase 2 hardening has started with virtual namespace conflict checks, strategy validation, and alias constraints.
+- Phase 2 hardening now includes namespace conflicts, strategy validation, unique profile IDs/names, unique virtual model aliases, and capability-aware target matching.
 - Phase 2 table persistence exists in configstore (table + migration + CRUD methods), and transport APIs auto-backfill table rows from plugin config when available.
+- Config load path syncs governance routing profiles into governance plugin config to keep runtime behavior aligned with file/store state.
 
 ## Phase 1 Config Shape (Current)
 
