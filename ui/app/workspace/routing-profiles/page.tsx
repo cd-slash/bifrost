@@ -37,6 +37,7 @@ import {
 	useUpdateRoutingProfileMutation,
 } from "@/lib/store/apis/routingProfilesApi";
 import { useGetProvidersQuery } from "@/lib/store/apis/providersApi";
+import { useGetVirtualKeysQuery } from "@/lib/store/apis/governanceApi";
 import { ModelMultiselect } from "@/components/ui/modelMultiselect";
 import { RoutingProfile, RoutingProfileTarget, RoutingProfileStrategy } from "@/lib/types/routingProfiles";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ function emptyTarget(): RoutingProfileTarget {
 interface ProfileFormData {
 	name: string;
 	virtual_provider: string;
+	virtual_key_id: string;
 	strategy: RoutingProfileStrategy;
 	enabled: boolean;
 	targets: RoutingProfileTarget[];
@@ -68,6 +70,7 @@ function emptyForm(): ProfileFormData {
 	return {
 		name: "",
 		virtual_provider: "",
+		virtual_key_id: "",
 		strategy: "ordered_failover",
 		enabled: true,
 		targets: [emptyTarget()],
@@ -87,6 +90,7 @@ export default function RoutingProfilesPage() {
 		virtualProviderFilter ? { virtualProvider: virtualProviderFilter } : undefined
 	);
 	const { data: providersData = [] } = useGetProvidersQuery();
+	const { data: virtualKeysData } = useGetVirtualKeysQuery();
 	const { data: exportData } = useExportRoutingProfilesQuery(undefined, { skip: !detailSheetOpen });
 	const [createRoutingProfile, { isLoading: isCreating }] = useCreateRoutingProfileMutation();
 	const [updateRoutingProfile, { isLoading: isUpdating }] = useUpdateRoutingProfileMutation();
@@ -117,6 +121,7 @@ export default function RoutingProfilesPage() {
 		setFormData({
 			name: profile.name,
 			virtual_provider: profile.virtual_provider,
+			virtual_key_id: profile.virtual_key_id || "",
 			strategy: profile.strategy || "ordered_failover",
 			enabled: profile.enabled,
 			targets: profile.targets.length > 0 ? profile.targets.map(t => ({...t})) : [emptyTarget()],
@@ -322,7 +327,7 @@ export default function RoutingProfilesPage() {
 			)}
 
 			<Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-white p-6">
+				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto dark:bg-card p-6">
 					<SheetHeader className="mb-4">
 						<SheetTitle>Create New Profile</SheetTitle>
 						<SheetDescription>Define a routing profile with targets in priority order.</SheetDescription>
@@ -347,6 +352,28 @@ export default function RoutingProfilesPage() {
 							/>
 							<p className="text-xs text-muted-foreground">
 								The alias to use in requests (e.g., <code>light/light</code> routes to this profile)
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="create-vk">Virtual Key (optional)</Label>
+							<Select
+								value={formData.virtual_key_id || ""}
+								onValueChange={(v) => setFormData({ ...formData, virtual_key_id: v === "none" ? "" : v })}
+							>
+								<SelectTrigger id="create-vk">
+									<SelectValue placeholder="Any virtual key" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">Any virtual key</SelectItem>
+									{virtualKeysData?.virtual_keys?.map((vk) => (
+										<SelectItem key={vk.id} value={vk.id}>
+											{vk.name} ({vk.value})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								Route all requests with this virtual key to this profile
 							</p>
 						</div>
 						<div className="space-y-2">
@@ -469,7 +496,7 @@ export default function RoutingProfilesPage() {
 			</Sheet>
 
 			<Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-white p-6">
+				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto dark:bg-card p-6">
 					<SheetHeader className="mb-4">
 						<SheetTitle>Edit Profile</SheetTitle>
 						<SheetDescription>Update the routing profile configuration.</SheetDescription>
@@ -494,6 +521,28 @@ export default function RoutingProfilesPage() {
 							/>
 							<p className="text-xs text-muted-foreground">
 								The alias to use in requests (e.g., <code>light/light</code> routes to this profile)
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="edit-vk">Virtual Key (optional)</Label>
+							<Select
+								value={formData.virtual_key_id || ""}
+								onValueChange={(v) => setFormData({ ...formData, virtual_key_id: v === "none" ? "" : v })}
+							>
+								<SelectTrigger id="edit-vk">
+									<SelectValue placeholder="Any virtual key" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">Any virtual key</SelectItem>
+									{virtualKeysData?.virtual_keys?.map((vk) => (
+										<SelectItem key={vk.id} value={vk.id}>
+											{vk.name} ({vk.value})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								Route all requests with this virtual key to this profile
 							</p>
 						</div>
 						<div className="space-y-2">
@@ -616,7 +665,7 @@ export default function RoutingProfilesPage() {
 			</Sheet>
 
 			<Sheet open={detailSheetOpen} onOpenChange={setDetailSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[600px] overflow-y-auto bg-white p-6">
+				<SheetContent className="flex w-full flex-col min-w-[600px] overflow-y-auto dark:bg-card p-6">
 					{selectedProfile && (
 						<>
 							<SheetHeader>

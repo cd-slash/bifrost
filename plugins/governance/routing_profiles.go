@@ -22,6 +22,7 @@ type RoutingProfile struct {
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description,omitempty"`
 	VirtualProvider string                 `json:"virtual_provider"`
+	VirtualKeyID    string                 `json:"virtual_key_id,omitempty"` // Route requests with this virtual key to this profile
 	Enabled         bool                   `json:"enabled"`
 	Strategy        RoutingProfileStrategy `json:"strategy,omitempty"`
 	Targets         []RoutingProfileTarget `json:"targets"`
@@ -57,37 +58,52 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 		return body, false, nil
 	}
 
-	modelValue, hasModel := body["model"]
-	if !hasModel {
-		if strings.Contains(req.Path, "/genai") {
-			modelValue = req.CaseInsensitivePathParamLookup("model")
-		} else {
-			return body, false, nil
+	var profile *RoutingProfile
+	var genaiRequestSuffix string
+
+	// First, check if there's a virtual key being used that has a routing profile
+	if virtualKey != nil && virtualKey.ID != "" {
+		profile = p.findRoutingProfileByVirtualKeyID(virtualKey.ID)
+		if profile != nil {
+			p.logger.Debug("[RoutingProfile] Found profile %s for virtual key ID %s", profile.Name, virtualKey.ID)
 		}
 	}
 
-	modelStr, ok := modelValue.(string)
-	if !ok || modelStr == "" {
-		return body, false, nil
-	}
-
-	genaiRequestSuffix := ""
-	if strings.Contains(req.Path, "/genai") {
-		for _, sfx := range gemini.GeminiRequestSuffixPaths {
-			if before, ok := strings.CutSuffix(modelStr, sfx); ok {
-				modelStr = before
-				genaiRequestSuffix = sfx
-				break
+	// If no virtual key profile found, try to find by model alias
+	var baseModel string
+	if profile == nil {
+		modelValue, hasModel := body["model"]
+		if !hasModel {
+			if strings.Contains(req.Path, "/genai") {
+				modelValue = req.CaseInsensitivePathParamLookup("model")
+			} else {
+				return body, false, nil
 			}
 		}
+
+		modelStr, ok := modelValue.(string)
+		if !ok || modelStr == "" {
+			return body, false, nil
+		}
+
+		if strings.Contains(req.Path, "/genai") {
+			for _, sfx := range gemini.GeminiRequestSuffixPaths {
+				if before, ok := strings.CutSuffix(modelStr, sfx); ok {
+					modelStr = before
+					genaiRequestSuffix = sfx
+					break
+				}
+			}
+		}
+
+		providerAlias, baseModel := schemas.ParseModelString(modelStr, "")
+		if providerAlias == "" {
+			return body, false, nil
+		}
+
+		profile = p.findRoutingProfile(providerAlias)
 	}
 
-	providerAlias, baseModel := schemas.ParseModelString(modelStr, "")
-	if providerAlias == "" {
-		return body, false, nil
-	}
-
-	profile := p.findRoutingProfile(providerAlias)
 	if profile == nil {
 		return body, false, nil
 	}
@@ -148,6 +164,23 @@ func (p *GovernancePlugin) findRoutingProfile(alias schemas.ModelProvider) *Rout
 			continue
 		}
 		if strings.EqualFold(profile.VirtualProvider, string(alias)) {
+			return profile
+		}
+	}
+	return nil
+}
+
+func (p *GovernancePlugin) findRoutingProfileByVirtualKeyID(virtualKeyID string) *RoutingProfile {
+	if virtualKeyID == "" {
+		return nil
+	}
+	profiles := p.getRoutingProfiles()
+	for i := range profiles {
+		profile := &profiles[i]
+		if !profile.Enabled {
+			continue
+		}
+		if profile.VirtualKeyID != "" && strings.EqualFold(profile.VirtualKeyID, virtualKeyID) {
 			return profile
 		}
 	}
