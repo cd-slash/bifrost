@@ -37,6 +37,7 @@ import {
 	useUpdateRoutingProfileMutation,
 } from "@/lib/store/apis/routingProfilesApi";
 import { useGetProvidersQuery } from "@/lib/store/apis/providersApi";
+import { ModelMultiselect } from "@/components/ui/modelMultiselect";
 import { RoutingProfile, RoutingProfileTarget, RoutingProfileStrategy } from "@/lib/types/routingProfiles";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -321,7 +322,7 @@ export default function RoutingProfilesPage() {
 			)}
 
 			<Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-background p-6">
+				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-white p-6">
 					<SheetHeader className="mb-4">
 						<SheetTitle>Create New Profile</SheetTitle>
 						<SheetDescription>Define a routing profile with targets in priority order.</SheetDescription>
@@ -435,12 +436,16 @@ export default function RoutingProfilesPage() {
 													</SelectContent>
 												</Select>
 											</div>
-											<Input
-												placeholder="Model (optional)"
-												value={target.model || ""}
-												onChange={(e) => updateTarget(idx, 'model', e.target.value)}
-												className="flex-1"
-											/>
+											<div className="flex-1">
+												<ModelMultiselect
+													provider={target.provider}
+													value={target.model || ""}
+													onChange={(value) => updateTarget(idx, 'model', value)}
+													placeholder="Model (optional)"
+													isSingleSelect
+													className="h-9"
+												/>
+											</div>
 											<Input
 												placeholder="Virtual model"
 												value={target.virtual_model || ""}
@@ -464,7 +469,7 @@ export default function RoutingProfilesPage() {
 			</Sheet>
 
 			<Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-background p-6">
+				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-white p-6">
 					<SheetHeader className="mb-4">
 						<SheetTitle>Edit Profile</SheetTitle>
 						<SheetDescription>Update the routing profile configuration.</SheetDescription>
@@ -578,12 +583,16 @@ export default function RoutingProfilesPage() {
 													</SelectContent>
 												</Select>
 											</div>
-											<Input
-												placeholder="Model (optional)"
-												value={target.model || ""}
-												onChange={(e) => updateTarget(idx, 'model', e.target.value)}
-												className="flex-1"
-											/>
+											<div className="flex-1">
+												<ModelMultiselect
+													provider={target.provider}
+													value={target.model || ""}
+													onChange={(value) => updateTarget(idx, 'model', value)}
+													placeholder="Model (optional)"
+													isSingleSelect
+													className="h-9"
+												/>
+											</div>
 											<Input
 												placeholder="Virtual model"
 												value={target.virtual_model || ""}
@@ -607,7 +616,7 @@ export default function RoutingProfilesPage() {
 			</Sheet>
 
 			<Sheet open={detailSheetOpen} onOpenChange={setDetailSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[600px] overflow-y-auto bg-background p-6">
+				<SheetContent className="flex w-full flex-col min-w-[600px] overflow-y-auto bg-white p-6">
 					{selectedProfile && (
 						<>
 							<SheetHeader>
