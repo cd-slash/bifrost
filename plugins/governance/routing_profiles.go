@@ -62,6 +62,7 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 	var genaiRequestSuffix string
 
 	// First, check if there's a virtual key being used that has a routing profile
+	var baseModel string
 	if virtualKey != nil && virtualKey.ID != "" {
 		profile = p.findRoutingProfileByVirtualKeyID(virtualKey.ID)
 		if profile != nil {
@@ -70,7 +71,6 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 	}
 
 	// If no virtual key profile found, try to find by model alias
-	var baseModel string
 	if profile == nil {
 		modelValue, hasModel := body["model"]
 		if !hasModel {
@@ -96,7 +96,8 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 			}
 		}
 
-		providerAlias, baseModel := schemas.ParseModelString(modelStr, "")
+		providerAlias, bm := schemas.ParseModelString(modelStr, "")
+		baseModel = bm
 		if providerAlias == "" {
 			return body, false, nil
 		}
