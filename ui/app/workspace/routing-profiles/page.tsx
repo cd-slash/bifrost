@@ -36,6 +36,7 @@ import {
 	useSimulateRoutingProfileMutation,
 	useUpdateRoutingProfileMutation,
 } from "@/lib/store/apis/routingProfilesApi";
+import { useGetProvidersQuery } from "@/lib/store/apis/providersApi";
 import { RoutingProfile, RoutingProfileTarget, RoutingProfileStrategy } from "@/lib/types/routingProfiles";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -84,6 +85,7 @@ export default function RoutingProfilesPage() {
 	const { data = [], isLoading, error } = useGetRoutingProfilesQuery(
 		virtualProviderFilter ? { virtualProvider: virtualProviderFilter } : undefined
 	);
+	const { data: providersData = [] } = useGetProvidersQuery();
 	const { data: exportData } = useExportRoutingProfilesQuery(undefined, { skip: !detailSheetOpen });
 	const [createRoutingProfile, { isLoading: isCreating }] = useCreateRoutingProfileMutation();
 	const [updateRoutingProfile, { isLoading: isUpdating }] = useUpdateRoutingProfileMutation();
@@ -319,12 +321,12 @@ export default function RoutingProfilesPage() {
 			)}
 
 			<Sheet open={createSheetOpen} onOpenChange={setCreateSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[500px] overflow-y-auto">
-					<SheetHeader>
+				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-background p-6">
+					<SheetHeader className="mb-4">
 						<SheetTitle>Create New Profile</SheetTitle>
 						<SheetDescription>Define a routing profile with targets in priority order.</SheetDescription>
 					</SheetHeader>
-					<div className="flex flex-1 flex-col gap-6 py-4">
+					<div className="flex flex-1 flex-col gap-6">
 						<div className="space-y-2">
 							<Label htmlFor="create-name">Profile Name</Label>
 							<Input
@@ -342,7 +344,9 @@ export default function RoutingProfilesPage() {
 								value={formData.virtual_provider}
 								onChange={(e) => setFormData({ ...formData, virtual_provider: e.target.value })}
 							/>
-							<p className="text-xs text-muted-foreground">Use aliases like <code>light/light</code> in your requests.</p>
+							<p className="text-xs text-muted-foreground">
+								The alias to use in requests (e.g., <code>light/light</code> routes to this profile)
+							</p>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="create-strategy">Routing Strategy</Label>
@@ -378,7 +382,10 @@ export default function RoutingProfilesPage() {
 						<Separator />
 						<div className="space-y-3">
 							<div className="flex items-center justify-between">
-								<Label>Targets (in priority order)</Label>
+								<div>
+									<Label>Targets (in priority order)</Label>
+									<p className="text-xs text-muted-foreground">Order determines primary, failover, etc.</p>
+								</div>
 								<Button variant="outline" size="sm" onClick={addTarget} className="gap-1">
 									<Plus className="h-3 w-3" />
 									Add
@@ -386,7 +393,7 @@ export default function RoutingProfilesPage() {
 							</div>
 							<div className="space-y-2">
 								{formData.targets.map((target, idx) => (
-									<div key={`create-target-${idx}-${target.provider}`} className="flex items-center gap-2 rounded-md border p-2">
+									<div key={`create-target-${idx}-${target.provider}`} className="flex items-center gap-2 rounded-md border bg-card p-3">
 										<div className="flex flex-col gap-1">
 											<Button
 												variant="ghost"
@@ -408,12 +415,26 @@ export default function RoutingProfilesPage() {
 											</Button>
 										</div>
 										<div className="flex flex-1 gap-2">
-											<Input
-												placeholder="Provider"
-												value={target.provider}
-												onChange={(e) => updateTarget(idx, 'provider', e.target.value)}
-												className="flex-1"
-											/>
+											<div className="flex-1">
+												<Select
+													value={target.provider || ""}
+													onValueChange={(v) => updateTarget(idx, 'provider', v)}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder="Provider" />
+													</SelectTrigger>
+													<SelectContent>
+														{providersData.map((p) => (
+															<SelectItem key={p.name} value={p.name}>
+																{p.name}
+															</SelectItem>
+														))}
+														{providersData.length === 0 && (
+															<SelectItem value="custom">Enter manually</SelectItem>
+														)}
+													</SelectContent>
+												</Select>
+											</div>
 											<Input
 												placeholder="Model (optional)"
 												value={target.model || ""}
@@ -443,12 +464,12 @@ export default function RoutingProfilesPage() {
 			</Sheet>
 
 			<Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[500px] overflow-y-auto">
-					<SheetHeader>
+				<SheetContent className="flex w-full flex-col min-w-[550px] overflow-y-auto bg-background p-6">
+					<SheetHeader className="mb-4">
 						<SheetTitle>Edit Profile</SheetTitle>
 						<SheetDescription>Update the routing profile configuration.</SheetDescription>
 					</SheetHeader>
-					<div className="flex flex-1 flex-col gap-6 py-4">
+					<div className="flex flex-1 flex-col gap-6">
 						<div className="space-y-2">
 							<Label htmlFor="edit-name">Profile Name</Label>
 							<Input
@@ -466,6 +487,9 @@ export default function RoutingProfilesPage() {
 								value={formData.virtual_provider}
 								onChange={(e) => setFormData({ ...formData, virtual_provider: e.target.value })}
 							/>
+							<p className="text-xs text-muted-foreground">
+								The alias to use in requests (e.g., <code>light/light</code> routes to this profile)
+							</p>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="edit-strategy">Routing Strategy</Label>
@@ -501,7 +525,10 @@ export default function RoutingProfilesPage() {
 						<Separator />
 						<div className="space-y-3">
 							<div className="flex items-center justify-between">
-								<Label>Targets (in priority order)</Label>
+								<div>
+									<Label>Targets (in priority order)</Label>
+									<p className="text-xs text-muted-foreground">Order determines primary, failover, etc.</p>
+								</div>
 								<Button variant="outline" size="sm" onClick={addTarget} className="gap-1">
 									<Plus className="h-3 w-3" />
 									Add
@@ -509,7 +536,7 @@ export default function RoutingProfilesPage() {
 							</div>
 							<div className="space-y-2">
 								{formData.targets.map((target, idx) => (
-									<div key={`edit-target-${idx}-${target.provider}`} className="flex items-center gap-2 rounded-md border p-2">
+									<div key={`edit-target-${idx}-${target.provider}`} className="flex items-center gap-2 rounded-md border bg-card p-3">
 										<div className="flex flex-col gap-1">
 											<Button
 												variant="ghost"
@@ -531,12 +558,26 @@ export default function RoutingProfilesPage() {
 											</Button>
 										</div>
 										<div className="flex flex-1 gap-2">
-											<Input
-												placeholder="Provider"
-												value={target.provider}
-												onChange={(e) => updateTarget(idx, 'provider', e.target.value)}
-												className="flex-1"
-											/>
+											<div className="flex-1">
+												<Select
+													value={target.provider || ""}
+													onValueChange={(v) => updateTarget(idx, 'provider', v)}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder="Provider" />
+													</SelectTrigger>
+													<SelectContent>
+														{providersData.map((p) => (
+															<SelectItem key={p.name} value={p.name}>
+																{p.name}
+															</SelectItem>
+														))}
+														{providersData.length === 0 && (
+															<SelectItem value="custom">Enter manually</SelectItem>
+														)}
+													</SelectContent>
+												</Select>
+											</div>
 											<Input
 												placeholder="Model (optional)"
 												value={target.model || ""}
@@ -566,7 +607,7 @@ export default function RoutingProfilesPage() {
 			</Sheet>
 
 			<Sheet open={detailSheetOpen} onOpenChange={setDetailSheetOpen}>
-				<SheetContent className="flex w-full flex-col min-w-[600px] overflow-y-auto">
+				<SheetContent className="flex w-full flex-col min-w-[600px] overflow-y-auto bg-background p-6">
 					{selectedProfile && (
 						<>
 							<SheetHeader>
