@@ -16,7 +16,7 @@ RUN node scripts/fix-paths.js
 
 # --- Go Build Stage: Compile the Go binary ---
 FROM golang:1.25.5-alpine3.22 AS builder
-WORKDIR /app
+WORKDIR /app/transports
 
 # Install dependencies including gcc for CGO and sqlite
 RUN apk add --no-cache gcc musl-dev sqlite-dev binutils binutils-gold
@@ -25,11 +25,15 @@ RUN apk add --no-cache gcc musl-dev sqlite-dev binutils binutils-gold
 ENV CGO_ENABLED=1 GOOS=linux
 
 COPY transports/go.mod transports/go.sum ./
-RUN ls
-RUN cat go.mod
+
+# Copy sibling modules used by replace directives
+COPY core/ ../core/
+COPY framework/ ../framework/
+COPY plugins/ ../plugins/
+
 RUN go mod download
 
-# Copy source code and dependencies
+# Copy transports source code
 COPY transports/ ./
 
 COPY --from=ui-builder /app/out ./bifrost-http/ui
@@ -41,11 +45,11 @@ RUN go build \
     -ldflags="-w -s -X main.Version=v${VERSION} -extldflags '-static'" \
     -a -trimpath \
     -tags "sqlite_static" \
-    -o /app/main \
+    -o /app/transports/main \
     ./bifrost-http
 
 # Verify build succeeded
-RUN test -f /app/main || (echo "Build failed" && exit 1)
+RUN test -f /app/transports/main || (echo "Build failed" && exit 1)
 
 # --- Runtime Stage: Minimal runtime image ---
 FROM alpine:3.22
@@ -58,8 +62,8 @@ WORKDIR /app
 RUN apk add --no-cache musl libgcc ca-certificates
 
 # Create data directory and set up user
-COPY --from=builder /app/main .
-COPY --from=builder /app/docker-entrypoint.sh .
+COPY --from=builder /app/transports/main ./main
+COPY --from=builder /app/transports/docker-entrypoint.sh ./docker-entrypoint.sh
 
 # Getting arguments
 ARG ARG_APP_PORT=8080

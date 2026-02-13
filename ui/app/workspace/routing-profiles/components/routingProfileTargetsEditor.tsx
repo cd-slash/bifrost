@@ -36,7 +36,7 @@ export function RoutingProfileTargetsEditor({ targets, onChange, idPrefix }: Pro
 	return (
 		<div className="space-y-2">
 			{targets.map((target, idx) => (
-				<div key={`${idPrefix}-${target.provider}-${target.model}-${target.virtual_model}-${idx}`} className="grid grid-cols-1 gap-2 rounded border p-2 md:grid-cols-7">
+				<div key={`${idPrefix}-target-${idx}`} className="grid grid-cols-1 gap-2 rounded border p-2 md:grid-cols-7">
 					<Input value={target.provider} onChange={(e) => updateTarget(idx, { provider: e.target.value })} placeholder="Provider" aria-label="Provider" />
 					<Input value={target.virtual_model || ""} onChange={(e) => updateTarget(idx, { virtual_model: e.target.value })} placeholder="Virtual model" aria-label="Virtual model" />
 					<Input value={target.model || ""} onChange={(e) => updateTarget(idx, { model: e.target.value })} placeholder="Model" aria-label="Model" />
