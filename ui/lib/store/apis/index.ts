@@ -10,4 +10,5 @@ export * from "./mcpApi";
 export * from "./mcpLogsApi";
 export * from "./pluginsApi";
 export * from "./providersApi";
+export * from "./routingProfilesApi";
 export * from "./sessionApi";

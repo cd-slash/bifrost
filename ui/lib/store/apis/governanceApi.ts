@@ -609,6 +609,34 @@ export const governanceApi = baseApi.injectEndpoints({
 				}
 			},
 		}),
+
+		// Consolidated Limits View
+		getAllLimits: builder.query<
+			{
+				providers: ProviderGovernance[];
+				virtual_keys: VirtualKey[];
+				model_configs: ModelConfig[];
+				teams: Team[];
+				customers: Customer[];
+				budgets: Record<string, Budget>;
+				rate_limits: Record<string, RateLimit>;
+			},
+			void
+		>({
+			query: () => ({
+				url: "/governance/all-limits",
+				params: { from_memory: true },
+			}),
+			providesTags: [
+				"VirtualKeys",
+				"Teams",
+				"Customers",
+				"Budgets",
+				"RateLimits",
+				"ModelConfigs",
+				"ProviderGovernance",
+			],
+		}),
 	}),
 });
 
@@ -665,6 +693,10 @@ export const {
 	useGetProviderGovernanceQuery,
 	useUpdateProviderGovernanceMutation,
 	useDeleteProviderGovernanceMutation,
+
+	// Consolidated Limits
+	useGetAllLimitsQuery,
+	useLazyGetAllLimitsQuery,
 
 	// Lazy queries
 	useLazyGetVirtualKeysQuery,

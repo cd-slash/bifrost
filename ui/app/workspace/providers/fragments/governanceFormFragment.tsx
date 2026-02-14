@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormItem } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import NumberAndSelect from "@/components/ui/numberAndSelect";
+import { FlexibleDurationWrapper } from "@/components/ui/flexibleDuration";
 import { DottedSeparator } from "@/components/ui/separator";
 import { resetDurationOptions } from "@/lib/constants/governance";
 import {
@@ -214,16 +214,16 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 						name="budgetMaxLimit"
 						render={({ field }) => (
 							<FormItem>
-								<NumberAndSelect
-									id="providerBudgetMaxLimit"
-									labelClassName="font-normal"
-									label="Maximum Spend (USD)"
-									value={field.value || ""}
-									selectValue={form.watch("budgetResetDuration") || "1M"}
-									onChangeNumber={(value) => field.onChange(value)}
-									onChangeSelect={(value) => form.setValue("budgetResetDuration", value, { shouldDirty: true })}
-									options={resetDurationOptions}
-								/>
+																												<FlexibleDurationWrapper
+																																		id="providerBudgetMaxLimit"
+																																		labelClassName="font-normal"
+																																		label="Maximum Spend (USD)"
+																																		value={field.value || ""}
+																																		selectValue={form.watch("budgetResetDuration") || "1M"}
+																																		onChangeNumber={(value) => field.onChange(value)}
+																																		onChangeSelect={(value) => form.setValue("budgetResetDuration", value, { shouldDirty: true })}
+																																		options={resetDurationOptions}
+																																	/>
 							</FormItem>
 						)}
 					/>
@@ -240,16 +240,16 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 						name="tokenMaxLimit"
 						render={({ field }) => (
 							<FormItem>
-								<NumberAndSelect
-									id="providerTokenMaxLimit"
-									labelClassName="font-normal"
-									label="Maximum Tokens"
-									value={field.value || ""}
-									selectValue={form.watch("tokenResetDuration") || "1h"}
-									onChangeNumber={(value) => field.onChange(value)}
-									onChangeSelect={(value) => form.setValue("tokenResetDuration", value, { shouldDirty: true })}
-									options={resetDurationOptions}
-								/>
+																												<FlexibleDurationWrapper
+																																		id="providerTokenMaxLimit"
+																																		labelClassName="font-normal"
+																																		label="Maximum Tokens"
+																																		value={field.value || ""}
+																																		selectValue={form.watch("tokenResetDuration") || "1h"}
+																																		onChangeNumber={(value) => field.onChange(value)}
+																																		onChangeSelect={(value) => form.setValue("tokenResetDuration", value, { shouldDirty: true })}
+																																		options={resetDurationOptions}
+																																	/>
 							</FormItem>
 						)}
 					/>
@@ -259,16 +259,16 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 						name="requestMaxLimit"
 						render={({ field }) => (
 							<FormItem>
-								<NumberAndSelect
-									id="providerRequestMaxLimit"
-									labelClassName="font-normal"
-									label="Maximum Requests"
-									value={field.value || ""}
-									selectValue={form.watch("requestResetDuration") || "1h"}
-									onChangeNumber={(value) => field.onChange(value)}
-									onChangeSelect={(value) => form.setValue("requestResetDuration", value, { shouldDirty: true })}
-									options={resetDurationOptions}
-								/>
+																												<FlexibleDurationWrapper
+																																		id="providerRequestMaxLimit"
+																																		labelClassName="font-normal"
+																																		label="Maximum Requests"
+																																		value={field.value || ""}
+																																		selectValue={form.watch("requestResetDuration") || "1h"}
+																																		onChangeNumber={(value) => field.onChange(value)}
+																																		onChangeSelect={(value) => form.setValue("requestResetDuration", value, { shouldDirty: true })}
+																																		options={resetDurationOptions}
+																																	/>
 							</FormItem>
 						)}
 					/>

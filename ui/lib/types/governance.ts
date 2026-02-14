@@ -69,6 +69,7 @@ export interface VirtualKey {
 	customer_id?: string;
 	budget_id?: string;
 	rate_limit_id?: string;
+	routing_profile_id?: string;
 	is_active: boolean;
 	created_at: string;
 	updated_at: string;
@@ -153,6 +154,7 @@ export interface CreateVirtualKeyRequest {
 	customer_id?: string;
 	budget?: CreateBudgetRequest;
 	rate_limit?: CreateRateLimitRequest;
+	routing_profile_id?: string;
 	is_active?: boolean;
 }
 
@@ -165,6 +167,7 @@ export interface UpdateVirtualKeyRequest {
 	customer_id?: string;
 	budget?: UpdateBudgetRequest;
 	rate_limit?: UpdateRateLimitRequest;
+	routing_profile_id?: string;
 	is_active?: boolean;
 }
 

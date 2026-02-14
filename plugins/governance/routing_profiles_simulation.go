@@ -47,7 +47,7 @@ func SimulateRoutingProfileDecision(profiles []RoutingProfile, model string, req
 		if !target.Enabled || strings.TrimSpace(target.Provider) == "" {
 			continue
 		}
-		if !matchesVirtualModel(target.VirtualModel, virtualModel) {
+		if !matchesVirtualModel(profile.VirtualModel, virtualModel) {
 			continue
 		}
 		if len(target.RequestTypes) > 0 && strings.TrimSpace(requestType) != "" && !containsFold(target.RequestTypes, requestType) {

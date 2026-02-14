@@ -8,7 +8,6 @@ export interface RoutingProfileRateHint {
 
 export interface RoutingProfileTarget {
 	provider: string;
-	virtual_model?: string;
 	model?: string;
 	priority?: number;
 	weight?: number;
@@ -23,7 +22,7 @@ export interface RoutingProfile {
 	name: string;
 	description?: string;
 	virtual_provider: string;
-	virtual_key_id?: string; // Route requests with this virtual key to this profile
+	virtual_model?: string;
 	enabled: boolean;
 	strategy?: RoutingProfileStrategy;
 	targets: RoutingProfileTarget[];

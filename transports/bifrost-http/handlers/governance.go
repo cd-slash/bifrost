@@ -278,6 +278,9 @@ func (h *GovernanceHandler) RegisterRoutes(r *router.Router, middlewares ...sche
 	r.GET("/api/governance/providers", lib.ChainMiddlewares(h.getProviderGovernance, middlewares...))
 	r.PUT("/api/governance/providers/{provider_name}", lib.ChainMiddlewares(h.updateProviderGovernance, middlewares...))
 	r.DELETE("/api/governance/providers/{provider_name}", lib.ChainMiddlewares(h.deleteProviderGovernance, middlewares...))
+
+	// Consolidated Limits endpoint
+	r.GET("/api/governance/all-limits", lib.ChainMiddlewares(h.getAllLimits, middlewares...))
 }
 
 // getRoutingProfiles returns routing profiles.
@@ -2842,6 +2845,56 @@ func (h *GovernanceHandler) getProviderGovernance(ctx *fasthttp.RequestCtx) {
 	SendJSON(ctx, map[string]interface{}{
 		"providers": result,
 		"count":     len(result),
+	})
+}
+
+// getAllLimits handles GET /api/governance/all-limits - Get consolidated view of all limits
+func (h *GovernanceHandler) getAllLimits(ctx *fasthttp.RequestCtx) {
+	data := h.governanceManager.GetGovernanceData()
+	if data == nil {
+		SendError(ctx, 500, "Governance data is not available")
+		return
+	}
+
+	// Build provider governance list
+	var providers []ProviderGovernanceResponse
+	for _, p := range data.Providers {
+		if p.Budget != nil || p.RateLimit != nil {
+			providers = append(providers, ProviderGovernanceResponse{
+				Provider:  p.Name,
+				Budget:    p.Budget,
+				RateLimit: p.RateLimit,
+			})
+		}
+	}
+
+	// Convert maps to slices for virtual keys
+	virtualKeys := make([]*configstoreTables.TableVirtualKey, 0, len(data.VirtualKeys))
+	for _, vk := range data.VirtualKeys {
+		virtualKeys = append(virtualKeys, vk)
+	}
+
+	// Convert maps to slices for teams
+	teams := make([]*configstoreTables.TableTeam, 0, len(data.Teams))
+	for _, team := range data.Teams {
+		teams = append(teams, team)
+	}
+
+	// Convert maps to slices for customers
+	customers := make([]*configstoreTables.TableCustomer, 0, len(data.Customers))
+	for _, customer := range data.Customers {
+		customers = append(customers, customer)
+	}
+
+	// Return consolidated data
+	SendJSON(ctx, map[string]interface{}{
+		"providers":     providers,
+		"virtual_keys":  virtualKeys,
+		"model_configs": data.ModelConfigs,
+		"teams":         teams,
+		"customers":     customers,
+		"budgets":       data.Budgets,
+		"rate_limits":   data.RateLimits,
 	})
 }
 

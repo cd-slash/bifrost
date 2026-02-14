@@ -37,7 +37,6 @@ import {
 	useUpdateRoutingProfileMutation,
 } from "@/lib/store/apis/routingProfilesApi";
 import { useGetProvidersQuery } from "@/lib/store/apis/providersApi";
-import { useGetVirtualKeysQuery } from "@/lib/store/apis/governanceApi";
 import { ModelMultiselect } from "@/components/ui/modelMultiselect";
 import { RoutingProfile, RoutingProfileTarget, RoutingProfileStrategy } from "@/lib/types/routingProfiles";
 import { toast } from "sonner";
@@ -54,13 +53,13 @@ const STRATEGY_OPTIONS: { value: RoutingProfileStrategy; label: string; descript
 ];
 
 function emptyTarget(): RoutingProfileTarget {
-	return { provider: "", model: "", virtual_model: "", priority: 1, enabled: true, capabilities: [], request_types: [] };
+	return { provider: "", model: "", priority: 1, enabled: true, capabilities: [], request_types: [] };
 }
 
 interface ProfileFormData {
 	name: string;
 	virtual_provider: string;
-	virtual_key_id: string;
+	virtual_model: string;
 	strategy: RoutingProfileStrategy;
 	enabled: boolean;
 	targets: RoutingProfileTarget[];
@@ -70,7 +69,7 @@ function emptyForm(): ProfileFormData {
 	return {
 		name: "",
 		virtual_provider: "",
-		virtual_key_id: "",
+		virtual_model: "",
 		strategy: "ordered_failover",
 		enabled: true,
 		targets: [emptyTarget()],
@@ -90,7 +89,6 @@ export default function RoutingProfilesPage() {
 		virtualProviderFilter ? { virtualProvider: virtualProviderFilter } : undefined
 	);
 	const { data: providersData = [] } = useGetProvidersQuery();
-	const { data: virtualKeysData } = useGetVirtualKeysQuery();
 	const { data: exportData } = useExportRoutingProfilesQuery(undefined, { skip: !detailSheetOpen });
 	const [createRoutingProfile, { isLoading: isCreating }] = useCreateRoutingProfileMutation();
 	const [updateRoutingProfile, { isLoading: isUpdating }] = useUpdateRoutingProfileMutation();
@@ -121,7 +119,7 @@ export default function RoutingProfilesPage() {
 		setFormData({
 			name: profile.name,
 			virtual_provider: profile.virtual_provider,
-			virtual_key_id: profile.virtual_key_id || "",
+			virtual_model: profile.virtual_model || "",
 			strategy: profile.strategy || "ordered_failover",
 			enabled: profile.enabled,
 			targets: profile.targets.length > 0 ? profile.targets.map(t => ({...t})) : [emptyTarget()],
@@ -290,7 +288,9 @@ export default function RoutingProfilesPage() {
 								<div className="flex items-start justify-between">
 									<div className="space-y-1">
 										<CardTitle className="text-base">{profile.name}</CardTitle>
-										<CardDescription className="font-mono text-xs">{profile.virtual_provider}</CardDescription>
+										<CardDescription className="font-mono text-xs">
+											{profile.virtual_provider}{profile.virtual_model ? `/${profile.virtual_model}` : ""}
+										</CardDescription>
 									</div>
 									<Badge variant={profile.enabled ? "default" : "secondary"}>
 										{profile.enabled ? "Active" : "Disabled"}
@@ -355,25 +355,15 @@ export default function RoutingProfilesPage() {
 							</p>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="create-vk">Virtual Key (optional)</Label>
-							<Select
-								value={formData.virtual_key_id || ""}
-								onValueChange={(v) => setFormData({ ...formData, virtual_key_id: v === "none" ? "" : v })}
-							>
-								<SelectTrigger id="create-vk">
-									<SelectValue placeholder="Any virtual key" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">Any virtual key</SelectItem>
-									{virtualKeysData?.virtual_keys?.map((vk) => (
-										<SelectItem key={vk.id} value={vk.id}>
-											{vk.name} ({vk.value})
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+							<Label htmlFor="create-vm">Virtual Model</Label>
+							<Input
+								id="create-vm"
+								placeholder="e.g., gpt-4o"
+								value={formData.virtual_model}
+								onChange={(e) => setFormData({ ...formData, virtual_model: e.target.value })}
+							/>
 							<p className="text-xs text-muted-foreground">
-								Route all requests with this virtual key to this profile
+								The model alias to use in requests (e.g., <code>light/gpt-4o</code> uses this model)
 							</p>
 						</div>
 						<div className="space-y-2">
@@ -388,14 +378,16 @@ export default function RoutingProfilesPage() {
 								<SelectContent>
 									{STRATEGY_OPTIONS.map((opt) => (
 										<SelectItem key={opt.value} value={opt.value}>
-											<div className="flex flex-col">
-												<span>{opt.label}</span>
-												<span className="text-xs text-muted-foreground">{opt.description}</span>
-											</div>
+											{opt.label}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
+							{STRATEGY_OPTIONS.find(o => o.value === formData.strategy) && (
+								<p className="text-xs text-muted-foreground">
+									{STRATEGY_OPTIONS.find(o => o.value === formData.strategy)?.description}
+								</p>
+							)}
 						</div>
 						<div className="flex items-center justify-between rounded-lg border p-4">
 							<div className="space-y-0.5">
@@ -443,12 +435,12 @@ export default function RoutingProfilesPage() {
 											</Button>
 										</div>
 										<div className="flex flex-1 gap-2">
-											<div className="flex-1">
+											<div className="min-w-[200px] flex-1">
 												<Select
 													value={target.provider || ""}
 													onValueChange={(v) => updateTarget(idx, 'provider', v)}
 												>
-													<SelectTrigger>
+													<SelectTrigger className="w-full">
 														<SelectValue placeholder="Provider" />
 													</SelectTrigger>
 													<SelectContent>
@@ -473,12 +465,6 @@ export default function RoutingProfilesPage() {
 													className="h-9"
 												/>
 											</div>
-											<Input
-												placeholder="Virtual model"
-												value={target.virtual_model || ""}
-												onChange={(e) => updateTarget(idx, 'virtual_model', e.target.value)}
-												className="flex-1"
-											/>
 										</div>
 										<Button variant="ghost" size="sm" className="h-8 px-2 text-destructive" onClick={() => removeTarget(idx)}>
 											<Trash2 className="h-4 w-4" />
@@ -524,25 +510,15 @@ export default function RoutingProfilesPage() {
 							</p>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="edit-vk">Virtual Key (optional)</Label>
-							<Select
-								value={formData.virtual_key_id || ""}
-								onValueChange={(v) => setFormData({ ...formData, virtual_key_id: v === "none" ? "" : v })}
-							>
-								<SelectTrigger id="edit-vk">
-									<SelectValue placeholder="Any virtual key" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">Any virtual key</SelectItem>
-									{virtualKeysData?.virtual_keys?.map((vk) => (
-										<SelectItem key={vk.id} value={vk.id}>
-											{vk.name} ({vk.value})
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+							<Label htmlFor="edit-vm">Virtual Model</Label>
+							<Input
+								id="edit-vm"
+								placeholder="e.g., gpt-4o"
+								value={formData.virtual_model}
+								onChange={(e) => setFormData({ ...formData, virtual_model: e.target.value })}
+							/>
 							<p className="text-xs text-muted-foreground">
-								Route all requests with this virtual key to this profile
+								The model alias to use in requests (e.g., <code>light/gpt-4o</code> uses this model)
 							</p>
 						</div>
 						<div className="space-y-2">
@@ -557,14 +533,16 @@ export default function RoutingProfilesPage() {
 								<SelectContent>
 									{STRATEGY_OPTIONS.map((opt) => (
 										<SelectItem key={opt.value} value={opt.value}>
-											<div className="flex flex-col">
-												<span>{opt.label}</span>
-												<span className="text-xs text-muted-foreground">{opt.description}</span>
-											</div>
+											{opt.label}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
+							{STRATEGY_OPTIONS.find(o => o.value === formData.strategy) && (
+								<p className="text-xs text-muted-foreground">
+									{STRATEGY_OPTIONS.find(o => o.value === formData.strategy)?.description}
+								</p>
+							)}
 						</div>
 						<div className="flex items-center justify-between rounded-lg border p-4">
 							<div className="space-y-0.5">
@@ -612,12 +590,12 @@ export default function RoutingProfilesPage() {
 											</Button>
 										</div>
 										<div className="flex flex-1 gap-2">
-											<div className="flex-1">
+											<div className="min-w-[200px] flex-1">
 												<Select
 													value={target.provider || ""}
 													onValueChange={(v) => updateTarget(idx, 'provider', v)}
 												>
-													<SelectTrigger>
+													<SelectTrigger className="w-full">
 														<SelectValue placeholder="Provider" />
 													</SelectTrigger>
 													<SelectContent>
@@ -642,12 +620,6 @@ export default function RoutingProfilesPage() {
 													className="h-9"
 												/>
 											</div>
-											<Input
-												placeholder="Virtual model"
-												value={target.virtual_model || ""}
-												onChange={(e) => updateTarget(idx, 'virtual_model', e.target.value)}
-												className="flex-1"
-											/>
 										</div>
 										<Button variant="ghost" size="sm" className="h-8 px-2 text-destructive" onClick={() => removeTarget(idx)}>
 											<Trash2 className="h-4 w-4" />
@@ -672,7 +644,9 @@ export default function RoutingProfilesPage() {
 								<div className="flex items-center justify-between">
 									<div>
 										<SheetTitle>{selectedProfile.name}</SheetTitle>
-										<SheetDescription className="font-mono">{selectedProfile.virtual_provider}</SheetDescription>
+										<SheetDescription className="font-mono">
+											{selectedProfile.virtual_provider}{selectedProfile.virtual_model ? `/${selectedProfile.virtual_model}` : ""}
+										</SheetDescription>
 									</div>
 									<Badge variant={selectedProfile.enabled ? "default" : "secondary"}>
 										{selectedProfile.enabled ? "Active" : "Disabled"}
@@ -698,21 +672,19 @@ export default function RoutingProfilesPage() {
 									</TabsList>
 									<TabsContent value="targets" className="flex-1 space-y-4">
 										<div className="rounded-md border">
-											<div className="grid grid-cols-6 gap-2 bg-muted p-2 text-sm font-medium">
+											<div className="grid grid-cols-5 gap-2 bg-muted p-2 text-sm font-medium">
 												<div>#</div>
 												<div className="col-span-2">Provider</div>
 												<div>Model</div>
-												<div>Virtual Model</div>
 												<div>Enabled</div>
 											</div>
 											{selectedProfile.targets.map((target, idx) => (
-												<div key={`detail-target-${idx}-${target.provider}`} className="grid grid-cols-6 gap-2 border-t p-2 text-sm">
+												<div key={`detail-target-${idx}-${target.provider}`} className="grid grid-cols-5 gap-2 border-t p-2 text-sm">
 													<div className="flex items-center">
 														<Badge variant="outline">{idx + 1}</Badge>
 													</div>
 													<div className="col-span-2 flex items-center font-mono">{target.provider}</div>
 													<div className="flex items-center font-mono text-muted-foreground">{target.model || "—"}</div>
-													<div className="flex items-center font-mono text-muted-foreground">{target.virtual_model || "—"}</div>
 													<div className="flex items-center">
 														<Badge variant={target.enabled ? "default" : "secondary"}>
 															{target.enabled ? "Yes" : "No"}

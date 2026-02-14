@@ -107,6 +107,42 @@ When a request is made with a virtual key, Bifrost checks **all applicable budge
     - Then the next request will be blocked (both provider and VK budgets exceeded).
 ```
 
+## Provider Limit Precedence
+
+Provider-level limits take precedence over API key (Virtual Key), model, team, and customer limits. This means **if a provider limit is exceeded, requests to that provider will be blocked even if other limits have not been reached**.
+
+### Precedence Hierarchy
+
+When a request is made, limits are checked in the following order:
+
+**Checking Sequence:**
+```
+1. ✓ Provider Config Budget (checked FIRST)
+2. ✓ Provider Config Rate Limits (checked FIRST)
+3. ✓ VK Budget (checked after provider limits)
+4. ✓ VK Rate Limits (checked after provider limits)
+5. ✓ Team Budget (checked after VK limits)
+6. ✓ Customer Budget (checked after team limits)
+```
+
+**Important:** If any provider-level limit (budget or rate limit) is exceeded, the request is immediately blocked, regardless of the status of API key, team, or customer limits.
+
+### Example Scenario
+
+Consider this configuration:
+- **Provider Config Budget**: $0.05 (very low)
+- **VK Budget**: $10.00 (much higher)
+
+**Result:** Requests will be blocked when the $0.05 provider budget is consumed, even though the VK still has $9.95 remaining. This ensures provider-level governance is strictly enforced.
+
+### When to Use Provider Limits
+
+Use provider-level limits when you need:
+- **Hard caps** on spending or usage per provider
+- **Provider isolation** - ensure one provider doesn't consume all resources
+- **Cost containment** - prevent runaway spending on expensive providers
+- **Compliance** - enforce strict limits at the provider level
+
 ## Rate Limiting
 
 Rate limits protect your system from abuse and manage traffic by setting thresholds on request frequency and token usage over a specific time window. Rate limits can be configured at **both the Virtual Key level and Provider Config level** for granular control.
@@ -134,19 +170,32 @@ Provider configs within a virtual key can have independent rate limits, enabling
 
 ## Reset Durations
 
-Budgets and rate limits support flexible reset durations:
+Budgets and rate limits support flexible reset durations with an intuitive number + unit format:
 
-**Format Examples:**
-- `1m` - 1 minute
-- `5m` - 5 minutes  
-- `1h` - 1 hour
-- `1d` - 1 day
-- `1w` - 1 week
-- `1M` - 1 month
+### Flexible Duration Format
+
+Specify any arbitrary duration by entering a **number** and selecting a **unit**:
+
+**Supported Units:**
+- `m` - Minutes (e.g., `90m` = 90 minutes = 1.5 hours)
+- `h` - Hours (e.g., `4h` = 4 hours, `36h` = 1.5 days)
+- `d` - Days (e.g., `7d` = 1 week, `45d` = 45 days)
+- `w` - Weeks (e.g., `2w` = 2 weeks)
+- `M` - Months (approximated as 30 days, e.g., `3M` = 3 months)
+- `y` or `Y` - Years (approximated as 365 days, e.g., `1y` = 1 year)
 
 **Common Patterns:**
-- **Rate Limits**: `1m`, `1h`, `1d` for request throttling
-- **Budgets**: `1d`, `1w`, `1M` for cost control
+- **Rate Limits**: `15m`, `90m`, `4h`, `1d` for request throttling
+- **Budgets**: `1d`, `7d`, `1M`, `3M` for cost control
+
+**Examples:**
+- Configure a budget to reset every **90 minutes**: Enter `90` and select `Minutes`
+- Set a rate limit to reset every **4 hours**: Enter `4` and select `Hours`
+- Create a monthly budget that resets every **45 days**: Enter `45` and select `Days`
+
+<Note>
+The flexible duration format is backward compatible with existing configurations using standard formats like `1h`, `1d`, `1M`, etc.
+</Note>
 
 ---
 
@@ -603,3 +652,42 @@ Provider configurations with budget-based failover:
 - **[Routing](./routing)** - Direct requests to specific AI models, providers, and keys using Virtual Keys.
 - **[MCP Tool Filtering](./mcp-tools)** - Manage MCP clients/tools for virtual keys.
 - **[Tracing](../observability/default)** - Audit trails and request tracking
+
+---
+
+## Consolidated Budgets & Limits View
+
+Bifrost provides a unified **Budgets & Limits** page that consolidates all budget and rate limit configurations across your organization into a single, comprehensive view.
+
+### Accessing the Consolidated View
+
+Navigate to **Governance > Budgets & Limits** in the Bifrost dashboard to see all configured limits organized by type:
+
+### View Organization
+
+The consolidated view organizes limits into separate sections:
+
+1. **Providers** - Budgets and rate limits configured at the provider level
+2. **API Keys** - Budgets and rate limits for each Virtual Key
+3. **Models** - Budgets and rate limits configured for specific models
+4. **Teams** - Budget allocations for teams
+5. **Customers** - Budget allocations for customers
+
+### Features
+
+- **Summary Cards**: See at-a-glance counts of configured limits by type
+- **Usage Progress Bars**: Visual indicators showing current usage vs. limits (green < 80%, amber 80-100%, red exceeded)
+- **Reset Duration Display**: See when each limit will reset
+- **Quick Actions**: Navigate directly to management pages for each limit type
+- **Provider Precedence Notice**: Clear explanation that provider limits override other limits
+
+### Benefits
+
+- **Centralized Monitoring**: View all limits across your organization in one place
+- **Usage Tracking**: Monitor which limits are approaching exhaustion
+- **Quick Management**: Jump directly to configuration pages for any limit type
+- **Cross-Reference**: Compare limits across providers, API keys, and models
+
+<Note>
+The consolidated view displays limits from all hierarchy levels, making it easy to identify where governance policies are applied and how they're being utilized.
+</Note>

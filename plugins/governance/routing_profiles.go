@@ -22,7 +22,7 @@ type RoutingProfile struct {
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description,omitempty"`
 	VirtualProvider string                 `json:"virtual_provider"`
-	VirtualKeyID    string                 `json:"virtual_key_id,omitempty"` // Route requests with this virtual key to this profile
+	VirtualModel    string                 `json:"virtual_model,omitempty"`
 	Enabled         bool                   `json:"enabled"`
 	Strategy        RoutingProfileStrategy `json:"strategy,omitempty"`
 	Targets         []RoutingProfileTarget `json:"targets"`
@@ -30,7 +30,6 @@ type RoutingProfile struct {
 
 type RoutingProfileTarget struct {
 	Provider     string    `json:"provider"`
-	VirtualModel string    `json:"virtual_model,omitempty"`
 	Model        string    `json:"model,omitempty"`
 	Priority     int       `json:"priority,omitempty"`
 	Weight       *float64  `json:"weight,omitempty"`
@@ -58,51 +57,39 @@ func (p *GovernancePlugin) applyRoutingProfiles(ctx *schemas.BifrostContext, req
 		return body, false, nil
 	}
 
-	var profile *RoutingProfile
-	var genaiRequestSuffix string
-
-	// First, check if there's a virtual key being used that has a routing profile
-	var baseModel string
-	if virtualKey != nil && virtualKey.ID != "" {
-		profile = p.findRoutingProfileByVirtualKeyID(virtualKey.ID)
-		if profile != nil {
-			p.logger.Debug("[RoutingProfile] Found profile %s for virtual key ID %s", profile.Name, virtualKey.ID)
+	modelValue, hasModel := body["model"]
+	if !hasModel {
+		if strings.Contains(req.Path, "/genai") {
+			modelValue = req.CaseInsensitivePathParamLookup("model")
+		} else {
+			return body, false, nil
 		}
 	}
 
-	// If no virtual key profile found, try to find by model alias
+	modelStr, ok := modelValue.(string)
+	if !ok || modelStr == "" {
+		return body, false, nil
+	}
+
+	genaiRequestSuffix := ""
+	if strings.Contains(req.Path, "/genai") {
+		for _, sfx := range gemini.GeminiRequestSuffixPaths {
+			if before, ok := strings.CutSuffix(modelStr, sfx); ok {
+				modelStr = before
+				genaiRequestSuffix = sfx
+				break
+			}
+		}
+	}
+
+	providerAlias, baseModel := schemas.ParseModelString(modelStr, "")
+	if providerAlias == "" {
+		return body, false, nil
+	}
+
+	profile := p.findRoutingProfile(providerAlias)
 	if profile == nil {
-		modelValue, hasModel := body["model"]
-		if !hasModel {
-			if strings.Contains(req.Path, "/genai") {
-				modelValue = req.CaseInsensitivePathParamLookup("model")
-			} else {
-				return body, false, nil
-			}
-		}
-
-		modelStr, ok := modelValue.(string)
-		if !ok || modelStr == "" {
-			return body, false, nil
-		}
-
-		if strings.Contains(req.Path, "/genai") {
-			for _, sfx := range gemini.GeminiRequestSuffixPaths {
-				if before, ok := strings.CutSuffix(modelStr, sfx); ok {
-					modelStr = before
-					genaiRequestSuffix = sfx
-					break
-				}
-			}
-		}
-
-		providerAlias, bm := schemas.ParseModelString(modelStr, "")
-		baseModel = bm
-		if providerAlias == "" {
-			return body, false, nil
-		}
-
-		profile = p.findRoutingProfile(providerAlias)
+		return body, false, nil
 	}
 
 	if profile == nil {
@@ -171,23 +158,6 @@ func (p *GovernancePlugin) findRoutingProfile(alias schemas.ModelProvider) *Rout
 	return nil
 }
 
-func (p *GovernancePlugin) findRoutingProfileByVirtualKeyID(virtualKeyID string) *RoutingProfile {
-	if virtualKeyID == "" {
-		return nil
-	}
-	profiles := p.getRoutingProfiles()
-	for i := range profiles {
-		profile := &profiles[i]
-		if !profile.Enabled {
-			continue
-		}
-		if profile.VirtualKeyID != "" && strings.EqualFold(profile.VirtualKeyID, virtualKeyID) {
-			return profile
-		}
-	}
-	return nil
-}
-
 func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profile *RoutingProfile, baseModel, requestType string, capabilities []string, virtualKey *configstoreTables.TableVirtualKey) ([]profileCandidate, map[string]int) {
 	if profile == nil {
 		return nil, map[string]int{"profile_missing": 1}
@@ -200,7 +170,7 @@ func (p *GovernancePlugin) profileCandidates(ctx *schemas.BifrostContext, profil
 			rejectionReasons["target_disabled_or_provider_missing"]++
 			continue
 		}
-		if !matchesVirtualModel(target.VirtualModel, baseModel) {
+		if !matchesVirtualModel(profile.VirtualModel, baseModel) {
 			rejectionReasons["virtual_model_mismatch"]++
 			continue
 		}
@@ -428,23 +398,18 @@ func (p *GovernancePlugin) validateRoutingProfiles() error {
 		hasWildcardVirtualModel := false
 		hasNamedVirtualModel := false
 		seenVirtualModels := map[string]struct{}{}
+		if strings.TrimSpace(profile.VirtualModel) != "" {
+			if strings.EqualFold(strings.TrimSpace(profile.VirtualModel), "*") {
+				hasWildcardVirtualModel = true
+			} else {
+				hasNamedVirtualModel = true
+				vm := strings.ToLower(strings.TrimSpace(profile.VirtualModel))
+				seenVirtualModels[vm] = struct{}{}
+			}
+		}
 		for _, target := range profile.Targets {
 			if strings.TrimSpace(target.Provider) == "" {
 				return fmt.Errorf("routing profile %s target provider is required", profile.Name)
-			}
-			if strings.TrimSpace(target.VirtualModel) != "" && strings.TrimSpace(target.Model) == "" {
-				return fmt.Errorf("routing profile %s target for virtual_model %s must define model", profile.Name, target.VirtualModel)
-			}
-			if strings.EqualFold(strings.TrimSpace(target.VirtualModel), "*") {
-				hasWildcardVirtualModel = true
-			}
-			if vm := strings.TrimSpace(target.VirtualModel); vm != "" && vm != "*" {
-				hasNamedVirtualModel = true
-				key := strings.ToLower(vm)
-				if _, exists := seenVirtualModels[key]; exists {
-					return fmt.Errorf("routing profile %s has duplicate virtual_model alias %s", profile.Name, vm)
-				}
-				seenVirtualModels[key] = struct{}{}
 			}
 		}
 		if hasWildcardVirtualModel && hasNamedVirtualModel {

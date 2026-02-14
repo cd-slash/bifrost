@@ -466,22 +466,29 @@ export default function AppSidebar() {
 				description: "Manage custom plugins",
 				hasAccess: hasPluginsAccess,
 			},
-			{
-				title: "Governance",
-				url: "/workspace/governance",
-				icon: Landmark,
-				description: "Govern access",
-				hasAccess: hasGovernanceAccess || hasVirtualKeysAccess,
-				subItems: [
-					{
-						title: "Virtual Keys",
-						url: "/workspace/virtual-keys",
-						icon: KeyRound,
-						description: "Manage virtual keys & access",
-						hasAccess: hasVirtualKeysAccess,
-					},
-				],
-			},
+		{
+			title: "Governance",
+			url: "/workspace/governance",
+			icon: Landmark,
+			description: "Govern access",
+			hasAccess: hasGovernanceAccess || hasVirtualKeysAccess,
+			subItems: [
+				{
+					title: "Virtual Keys",
+					url: "/workspace/virtual-keys",
+					icon: KeyRound,
+					description: "Manage virtual keys & access",
+					hasAccess: hasVirtualKeysAccess,
+				},
+				{
+					title: "Budgets & Limits",
+					url: "/workspace/budgets-and-limits",
+					icon: Gauge,
+					description: "View and manage all budgets and limits",
+					hasAccess: hasGovernanceAccess,
+				},
+			],
+		},
 			{
 				title: "Config",
 				url: "/workspace/config",
