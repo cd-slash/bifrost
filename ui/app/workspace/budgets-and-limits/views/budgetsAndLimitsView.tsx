@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDurationLabel } from "@/lib/constants/governance";
+import { cn } from "@/lib/utils";
 import { Budget, Customer, ModelConfig, ProviderGovernance, RateLimit, Team, VirtualKey } from "@/lib/types/governance";
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
@@ -209,7 +210,7 @@ export default function BudgetsAndLimitsView({
 													Resets {getDurationLabel(item.budget.reset_duration)}
 												</span>
 											</div>
-											<Progress value={budgetPercent} className="h-2" indicatorClassName={getUsageColor(budgetPercent)} />
+																											<Progress value={budgetPercent} className={cn("h-2", getUsageColor(budgetPercent))} />
 											{budgetPercent >= 100 && (
 												<span className="text-xs text-red-500 font-medium">Budget exceeded</span>
 											)}
@@ -230,7 +231,7 @@ export default function BudgetsAndLimitsView({
 													Resets {getDurationLabel(item.rateLimit.token_reset_duration || "")}
 												</span>
 											</div>
-											<Progress value={tokenPercent} className="h-2" indicatorClassName={getUsageColor(tokenPercent)} />
+																											<Progress value={tokenPercent} className={cn("h-2", getUsageColor(tokenPercent))} />
 											{tokenPercent >= 100 && (
 												<span className="text-xs text-red-500 font-medium">Limit exceeded</span>
 											)}
@@ -251,7 +252,7 @@ export default function BudgetsAndLimitsView({
 													Resets {getDurationLabel(item.rateLimit.request_reset_duration || "")}
 												</span>
 											</div>
-											<Progress value={requestPercent} className="h-2" indicatorClassName={getUsageColor(requestPercent)} />
+																											<Progress value={requestPercent} className={cn("h-2", getUsageColor(requestPercent))} />
 											{requestPercent >= 100 && (
 												<span className="text-xs text-red-500 font-medium">Limit exceeded</span>
 											)}
