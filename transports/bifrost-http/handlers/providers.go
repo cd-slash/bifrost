@@ -559,6 +559,23 @@ func (h *ProviderHandler) listModels(ctx *fasthttp.RequestCtx) {
 		provider := schemas.ModelProvider(providerParam)
 		models := h.modelsManager.GetModelsForProvider(provider)
 
+		// For custom providers or when no models in catalog, also get models from keys
+		if len(models) == 0 || h.isCustomProvider(provider) {
+			keyModels := h.getModelsFromProviderKeys(provider)
+			// Merge key models with catalog models (avoiding duplicates)
+			modelSet := make(map[string]bool)
+			for _, m := range models {
+				modelSet[m] = true
+			}
+			for _, m := range keyModels {
+				modelSet[m] = true
+			}
+			models = make([]string, 0, len(modelSet))
+			for m := range modelSet {
+				models = append(models, m)
+			}
+		}
+
 		// Filter by keys if specified
 		if keysParam != "" {
 			keyIDs := strings.Split(keysParam, ",")
@@ -582,6 +599,23 @@ func (h *ProviderHandler) listModels(ctx *fasthttp.RequestCtx) {
 		// Collect models from all providers
 		for _, provider := range providers {
 			models := h.modelsManager.GetModelsForProvider(provider)
+
+			// For custom providers or when no models in catalog, also get models from keys
+			if len(models) == 0 || h.isCustomProvider(provider) {
+				keyModels := h.getModelsFromProviderKeys(provider)
+				// Merge key models with catalog models (avoiding duplicates)
+				modelSet := make(map[string]bool)
+				for _, m := range models {
+					modelSet[m] = true
+				}
+				for _, m := range keyModels {
+					modelSet[m] = true
+				}
+				models = make([]string, 0, len(modelSet))
+				for m := range modelSet {
+					models = append(models, m)
+				}
+			}
 
 			// Filter by keys if specified
 			if keysParam != "" {
@@ -684,6 +718,38 @@ func (h *ProviderHandler) filterModelsByKeys(provider schemas.ModelProvider, mod
 		}
 	}
 	return filtered
+}
+
+// isCustomProvider checks if a provider is a custom provider (has custom_provider_config)
+func (h *ProviderHandler) isCustomProvider(provider schemas.ModelProvider) bool {
+	config, err := h.inMemoryStore.GetProviderConfigRaw(provider)
+	if err != nil {
+		return false
+	}
+	return config.CustomProviderConfig != nil
+}
+
+// getModelsFromProviderKeys extracts all unique models configured in a provider's keys
+func (h *ProviderHandler) getModelsFromProviderKeys(provider schemas.ModelProvider) []string {
+	config, err := h.inMemoryStore.GetProviderConfigRaw(provider)
+	if err != nil {
+		return []string{}
+	}
+
+	modelSet := make(map[string]bool)
+	for _, key := range config.Keys {
+		for _, model := range key.Models {
+			if model != "" {
+				modelSet[model] = true
+			}
+		}
+	}
+
+	models := make([]string, 0, len(modelSet))
+	for model := range modelSet {
+		models = append(models, model)
+	}
+	return models
 }
 
 // ListBaseModelsResponse represents the response for listing base models

@@ -130,6 +130,8 @@ type VirtualKeyType = {
 	provider: string;
 };
 
+const NO_ROUTING_PROFILE_VALUE = "__none__";
+
 export default function VirtualKeySheet({ virtualKey, teams, customers, onSave, onCancel }: VirtualKeySheetProps) {
 	const [isOpen, setIsOpen] = useState(true);
 	const isEditing = !!virtualKey;
@@ -478,37 +480,37 @@ export default function VirtualKeySheet({ virtualKey, teams, customers, onSave, 
 									)}
 								/>
 
-								<FormField
-									control={form.control}
-									name="routingProfileId"
-									render={({ field }) => (
-										<FormItem>
+										<FormField
+											control={form.control}
+											name="routingProfileId"
+											render={({ field }) => (
+												<FormItem>
 											<FormLabel>Routing Profile</FormLabel>
 											<Select
-												onValueChange={field.onChange}
-												defaultValue={field.value}
+												onValueChange={(value) => field.onChange(value === NO_ROUTING_PROFILE_VALUE ? "" : value)}
+												value={field.value || NO_ROUTING_PROFILE_VALUE}
 											>
-												<FormControl>
+												<FormControl className="w-full">
 													<SelectTrigger>
 														<SelectValue placeholder="Select a routing profile (optional)" />
 													</SelectTrigger>
 												</FormControl>
 												<SelectContent>
-													<SelectItem value="">None</SelectItem>
-													{routingProfilesData?.map((profile) => (
-														<SelectItem key={profile.id} value={profile.id!}>
+													<SelectItem value={NO_ROUTING_PROFILE_VALUE}>None</SelectItem>
+													{Array.isArray(routingProfilesData) &&
+														routingProfilesData
+															.filter((profile): profile is typeof profile & { id: string } => typeof profile?.id === "string")
+															.map((profile) => (
+														<SelectItem key={profile.id} value={profile.id}>
 															{profile.name} ({profile.virtual_provider}{profile.virtual_model ? `/${profile.virtual_model}` : ""})
 														</SelectItem>
 													))}
-													{(!routingProfilesData || routingProfilesData.length === 0) && (
-														<div className="text-muted-foreground px-2 py-1.5 text-sm">No routing profiles available</div>
-													)}
-												</SelectContent>
-											</Select>
-											<FormMessage />
-										</FormItem>
-									)}
-								/>
+														</SelectContent>
+													</Select>
+													<FormMessage />
+												</FormItem>
+											)}
+										/>
 
 								<FormField
 									control={form.control}
