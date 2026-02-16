@@ -183,4 +183,92 @@ export function FlexibleDurationWrapper({
 	);
 }
 
+// DurationNumberInput - Just the number part of a duration input
+interface DurationNumberInputProps {
+	id: string;
+	value: string;
+	onChange: (value: string) => void;
+	disabled?: boolean;
+	minValue?: number;
+	maxValue?: number;
+}
+
+export function DurationNumberInput({
+	id,
+	value,
+	onChange,
+	disabled = false,
+	minValue = 1,
+	maxValue = 999,
+}: DurationNumberInputProps) {
+	const parsed = parseFlexibleDuration(value);
+	const numberValue = parsed?.value?.toString() || "";
+	const unitValue = parsed?.unit || "h";
+
+	const handleNumberChange = (inputValue: string) => {
+		if (inputValue === "") {
+			onChange("");
+			return;
+		}
+
+		const num = parseInt(inputValue, 10);
+		if (isNaN(num)) return;
+
+		const clampedNum = Math.max(minValue, Math.min(maxValue, num));
+		onChange(`${clampedNum}${unitValue}`);
+	};
+
+	return (
+		<Input
+			id={id}
+			placeholder="1"
+			value={numberValue}
+			onChange={(e) => handleNumberChange(e.target.value)}
+			type="number"
+			min={minValue}
+			max={maxValue}
+			disabled={disabled}
+			className="w-full"
+		/>
+	);
+}
+
+// DurationUnitSelect - Just the unit selector part of a duration input
+interface DurationUnitSelectProps {
+	id: string;
+	value: string;
+	onChange: (value: string) => void;
+	disabled?: boolean;
+}
+
+export function DurationUnitSelect({
+	id,
+	value,
+	onChange,
+	disabled = false,
+}: DurationUnitSelectProps) {
+	const parsed = parseFlexibleDuration(value);
+	const unitValue = parsed?.unit || "h";
+
+	const handleUnitChange = (newUnit: string) => {
+		const num = parsed?.value || 1;
+		onChange(`${num}${newUnit}`);
+	};
+
+	return (
+		<Select value={unitValue} onValueChange={handleUnitChange} disabled={disabled}>
+			<SelectTrigger id={id} className="w-full">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				{durationUnits.map((unit) => (
+					<SelectItem key={unit.value} value={unit.value}>
+						{unit.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
+}
+
 export default FlexibleDurationInput;

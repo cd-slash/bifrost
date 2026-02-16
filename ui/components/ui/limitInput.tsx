@@ -3,7 +3,7 @@
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { FlexibleDurationInput } from "./flexibleDuration";
+import { DurationNumberInput, DurationUnitSelect } from "./flexibleDuration";
 import React from "react";
 
 interface LimitInputProps {
@@ -61,40 +61,61 @@ export function LimitInput({
 	};
 
 	return (
-		<div className="space-y-4">
-			{/* Limit Value Input */}
-			<div className="space-y-2">
-				<Label htmlFor={id} className={labelClassName}>
-					{label}
-				</Label>
-				<Input
-					id={id}
-					type="text"
-					inputMode="numeric"
-					placeholder={getPlaceholder()}
-					value={limitValue}
-					onChange={(e) => {
-						// Allow only numeric input
-						const value = e.target.value.replace(/[^0-9.]/g, "");
-						onChangeLimit(value);
-					}}
-					disabled={disabled}
-					className="w-full"
-				/>
-				{getHelperText() && (
-					<p className="text-muted-foreground text-xs">{getHelperText()}</p>
-				)}
-			</div>
+		<div className="space-y-2">
+			{/* Label for the limit */}
+			<Label htmlFor={id} className={labelClassName}>
+				{label}
+			</Label>
+			
+			{/* Three-column layout: Limit (1/2) | Reset Period (1/4) | Unit (1/4) */}
+			<div className="flex w-full items-start gap-3">
+				{/* Limit Value Input - 1/2 width */}
+				<div className="w-1/2 space-y-1">
+					<Input
+						id={id}
+						type="text"
+						inputMode="numeric"
+						placeholder={getPlaceholder()}
+						value={limitValue}
+						onChange={(e) => {
+							// Allow only numeric input
+							const value = e.target.value.replace(/[^0-9.]/g, "");
+							onChangeLimit(value);
+						}}
+						disabled={disabled}
+						className="w-full"
+					/>
+					{getHelperText() && (
+						<p className="text-muted-foreground text-xs">{getHelperText()}</p>
+					)}
+				</div>
 
-			{/* Reset Duration Input */}
-			<FlexibleDurationInput
-				id={`${id}-duration`}
-				label="Reset Period"
-				value={durationValue}
-				onChange={onChangeDuration}
-				labelClassName="text-xs font-normal"
-				disabled={disabled}
-			/>
+				{/* Reset Duration Input - 1/4 width */}
+				<div className="w-1/4 space-y-1">
+					<Label htmlFor={`${id}-duration`} className="text-xs font-normal">
+						Reset Period
+					</Label>
+					<DurationNumberInput
+						id={`${id}-duration`}
+						value={durationValue}
+						onChange={onChangeDuration}
+						disabled={disabled}
+					/>
+				</div>
+
+				{/* Unit Selector - 1/4 width */}
+				<div className="w-1/4 space-y-1">
+					<Label htmlFor={`${id}-unit`} className="text-xs font-normal">
+						Unit
+					</Label>
+					<DurationUnitSelect
+						id={`${id}-unit`}
+						value={durationValue}
+						onChange={onChangeDuration}
+						disabled={disabled}
+					/>
+				</div>
+			</div>
 		</div>
 	);
 }
