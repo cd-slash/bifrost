@@ -2041,10 +2041,6 @@ func loadDefaultProviders(ctx context.Context, config *Config) error {
 	if providers == nil {
 		config.autoDetectProviders(ctx)
 		providers = config.Providers
-		// Store providers config in database
-		if err = config.ConfigStore.UpdateProvidersConfig(ctx, providers); err != nil {
-			return fmt.Errorf("failed to update providers config: %w", err)
-		}
 	} else {
 		processedProviders := make(map[schemas.ModelProvider]configstore.ProviderConfig)
 		for providerKey, dbProvider := range providers {
@@ -2082,9 +2078,77 @@ func loadDefaultProviders(ctx context.Context, config *Config) error {
 			}
 			processedProviders[provider] = providerConfig
 		}
-		config.Providers = processedProviders
+		providers = processedProviders
 	}
+
+	if providers == nil {
+		providers = make(map[schemas.ModelProvider]configstore.ProviderConfig)
+	}
+
+	addedScaffoldProviders := addScaffoldCustomProviders(providers)
+
+	// Store providers config in database
+	if err = config.ConfigStore.UpdateProvidersConfig(ctx, providers); err != nil {
+		return fmt.Errorf("failed to update providers config: %w", err)
+	}
+
+	if addedScaffoldProviders {
+		logger.Info("added default scaffold custom providers: ZAI Custom, Minimax Custom")
+	}
+
+	config.Providers = providers
 	return nil
+}
+
+func addScaffoldCustomProviders(providers map[schemas.ModelProvider]configstore.ProviderConfig) bool {
+	addedAny := false
+
+	for name, cfg := range defaultScaffoldCustomProviders() {
+		if _, exists := providers[name]; exists {
+			continue
+		}
+		providers[name] = cfg
+		addedAny = true
+	}
+
+	return addedAny
+}
+
+func defaultScaffoldCustomProviders() map[schemas.ModelProvider]configstore.ProviderConfig {
+	return map[schemas.ModelProvider]configstore.ProviderConfig{
+		schemas.ModelProvider("ZAI Custom"): {
+			Keys: []schemas.Key{
+				{
+					ID:     uuid.NewString(),
+					Name:   "zai-custom-key-1",
+					Value:  *schemas.NewEnvVar("env.ZAI_API_KEY"),
+					Models: []string{},
+					Weight: 1.0,
+				},
+			},
+			NetworkConfig:            &schemas.NetworkConfig{BaseURL: "https://open.bigmodel.cn/api/paas/v4"},
+			ConcurrencyAndBufferSize: &schemas.DefaultConcurrencyAndBufferSize,
+			CustomProviderConfig: &schemas.CustomProviderConfig{
+				BaseProviderType: schemas.OpenAI,
+			},
+		},
+		schemas.ModelProvider("Minimax Custom"): {
+			Keys: []schemas.Key{
+				{
+					ID:     uuid.NewString(),
+					Name:   "minimax-custom-key-1",
+					Value:  *schemas.NewEnvVar("env.MINIMAX_API_KEY"),
+					Models: []string{},
+					Weight: 1.0,
+				},
+			},
+			NetworkConfig:            &schemas.NetworkConfig{BaseURL: "https://api.minimax.io/v1"},
+			ConcurrencyAndBufferSize: &schemas.DefaultConcurrencyAndBufferSize,
+			CustomProviderConfig: &schemas.CustomProviderConfig{
+				BaseProviderType: schemas.OpenAI,
+			},
+		},
+	}
 }
 
 // loadDefaultGovernanceConfig loads governance configuration from the store
