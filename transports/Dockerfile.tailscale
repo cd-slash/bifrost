@@ -1,0 +1,150 @@
+# --- UI Build Stage: Build the Next.js frontend ---
+FROM node:24-alpine3.22 AS ui-builder
+WORKDIR /app
+
+# Copy UI package files and install dependencies
+COPY ui/package*.json ./
+RUN npm ci
+
+# Copy UI source code
+COPY ui/ ./
+
+# Build UI (skip the copy-build step)
+RUN npx next build
+RUN node scripts/fix-paths.js
+# Skip the copy-build step since we'll copy the files in the Go build stage
+
+# --- Go Build Stage: Compile the Go binary ---
+FROM golang:1.25.5-alpine3.22 AS builder
+WORKDIR /app/transports
+
+# Install dependencies including gcc for CGO and sqlite
+RUN apk add --no-cache gcc musl-dev sqlite-dev binutils binutils-gold
+
+# Set environment for CGO-enabled build (required for go-sqlite3)
+ENV CGO_ENABLED=1 GOOS=linux
+
+COPY transports/go.mod transports/go.sum ./
+
+# Copy sibling modules used by replace directives
+COPY core/ ../core/
+COPY framework/ ../framework/
+COPY plugins/ ../plugins/
+
+RUN go mod download
+
+# Copy transports source code
+COPY transports/ ./
+
+COPY --from=ui-builder /app/out ./bifrost-http/ui
+
+# Build the binary with CGO enabled and static SQLite linking
+ENV GOWORK=off
+ARG VERSION=unknown
+RUN go build \
+    -ldflags="-w -s -X main.Version=v${VERSION} -extldflags '-static'" \
+    -a -trimpath \
+    -tags "sqlite_static" \
+    -o /app/transports/main \
+    ./bifrost-http
+
+# Verify build succeeded
+RUN test -f /app/transports/main || (echo "Build failed" && exit 1)
+
+# --- Runtime Stage: Alpine with Tailscale ---
+FROM alpine:3.22
+WORKDIR /app
+
+# Install runtime dependencies
+# musl: C standard library (required for CGO binaries)
+# libgcc: GCC runtime library
+# ca-certificates: For HTTPS connections
+# iptables: Required by tailscale
+# ip6tables: Required by tailscale
+RUN apk add --no-cache musl libgcc ca-certificates iptables ip6tables
+
+# Install tailscale
+RUN apk add --no-cache tailscale
+
+# Create data directory and set up user
+COPY --from=builder /app/transports/main ./main
+COPY --from=builder /app/transports/docker-entrypoint.sh ./docker-entrypoint.sh
+
+# Create tailscale directories
+RUN mkdir -p /var/lib/tailscale /etc/tailscale
+
+# Create startup script that runs both tailscaled and bifrost
+RUN cat > /app/start.sh << 'EOF'
+#!/bin/sh
+set -e
+
+# Start tailscaled in background
+echo "Starting tailscaled..."
+tailscaled --socket=/var/run/tailscale/tailscaled.sock --statedir=/var/lib/tailscale &
+TAILSCALED_PID=$!
+
+# Wait for tailscaled to be ready
+sleep 3
+
+# Check if tailscale is already authenticated
+if tailscale --socket=/var/run/tailscale/tailscaled.sock status > /dev/null 2>&1; then
+    echo "Tailscale already authenticated"
+else
+    # Authenticate tailscale if authkey is provided and not already authenticated
+    if [ -n "$TS_AUTHKEY" ]; then
+        echo "Authenticating tailscale..."
+        tailscale --socket=/var/run/tailscale/tailscaled.sock up --authkey="$TS_AUTHKEY" --hostname="${TS_HOSTNAME:-bifrost}" --accept-routes=${TS_ACCEPT_ROUTES:-false} --accept-dns=false
+    fi
+fi
+
+# Wait for tailscale to be fully up
+sleep 2
+
+# Apply serve config if provided
+if [ -n "$TS_SERVE_CONFIG" ] && [ -f "$TS_SERVE_CONFIG" ]; then
+    echo "Applying tailscale serve config..."
+    tailscale --socket=/var/run/tailscale/tailscaled.sock serve set-config "$TS_SERVE_CONFIG" || echo "Serve config may already be applied"
+fi
+
+# Start the main application
+echo "Starting bifrost..."
+exec /app/docker-entrypoint.sh "$@"
+EOF
+
+RUN chmod +x /app/start.sh
+
+# Getting arguments
+ARG ARG_APP_PORT=8080
+ARG ARG_APP_HOST=0.0.0.0
+ARG ARG_LOG_LEVEL=info
+ARG ARG_LOG_STYLE=json
+ARG ARG_APP_DIR=/app/data
+
+# Environment variables with defaults (can be overridden at runtime)
+ENV APP_PORT=$ARG_APP_PORT \
+    APP_HOST=$ARG_APP_HOST \
+    LOG_LEVEL=$ARG_LOG_LEVEL \
+    LOG_STYLE=$ARG_LOG_STYLE \
+    APP_DIR=$ARG_APP_DIR
+
+RUN mkdir -p $APP_DIR/logs && \
+    adduser -D -s /bin/sh appuser && \
+    chown -R appuser:appuser /app && \
+    chmod +x /app/docker-entrypoint.sh
+
+# Create tailscale socket directory
+RUN mkdir -p /var/run/tailscale && chown -R appuser:appuser /var/run/tailscale /var/lib/tailscale
+
+USER root
+
+# Declare volume for data persistence
+VOLUME ["/app/data", "/var/lib/tailscale"]
+EXPOSE $ARG_APP_PORT 443
+
+# Health check for container status monitoring
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:${APP_PORT}/metrics || exit 1
+
+# Use the startup script
+ENTRYPOINT ["/app/start.sh"]
+CMD ["/app/main"]

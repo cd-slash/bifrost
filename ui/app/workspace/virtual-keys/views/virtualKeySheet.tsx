@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ModelMultiselect } from "@/components/ui/modelMultiselect";
 import { MultiSelect } from "@/components/ui/multiSelect";
-import { FlexibleDurationWrapper } from "@/components/ui/flexibleDuration";
+import { LimitInput } from "@/components/ui/limitInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DottedSeparator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -768,28 +768,28 @@ export default function VirtualKeySheet({ virtualKey, teams, customers, onSave, 
 															{/* Provider Budget Configuration */}
 															<div className="space-y-4">
 																<Label className="text-sm font-medium">Provider Budget</Label>
-																																	<FlexibleDurationWrapper
-																																		id={`providerBudget-${index}`}
-																																		labelClassName="font-normal"
-																																		label="Maximum Spend (USD)"
-																																		value={config.budget?.max_limit || ""}
-																																		selectValue={config.budget?.reset_duration || "1M"}
-																																		onChangeNumber={(value) => {
-																																			const currentBudget = config.budget || {};
-																																			handleUpdateProviderConfig(index, "budget", {
-																																				...currentBudget,
-																																				max_limit: value,
-																																			});
-																																		}}
-																																		onChangeSelect={(value) => {
-																																			const currentBudget = config.budget || {};
-																																			handleUpdateProviderConfig(index, "budget", {
-																																				...currentBudget,
-																																				reset_duration: value,
-																																			});
-																																		}}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id={`providerBudget-${index}`}
+																																			label="Maximum Spend (USD)"
+																																			limitValue={config.budget?.max_limit || ""}
+																																			durationValue={config.budget?.reset_duration || "1M"}
+																																			onChangeLimit={(value) => {
+																																				const currentBudget = config.budget || {};
+																																				handleUpdateProviderConfig(index, "budget", {
+																																					...currentBudget,
+																																					max_limit: value,
+																																				});
+																																			}}
+																																			onChangeDuration={(value) => {
+																																				const currentBudget = config.budget || {};
+																																				handleUpdateProviderConfig(index, "budget", {
+																																					...currentBudget,
+																																					reset_duration: value,
+																																				});
+																																			}}
+																																			labelClassName="font-normal"
+																																			limitType="currency"
+																																		/>
 															</div>
 
 															<DottedSeparator />
@@ -798,51 +798,51 @@ export default function VirtualKeySheet({ virtualKey, teams, customers, onSave, 
 															<div className="space-y-4">
 																<Label className="text-sm font-medium">Provider Rate Limits</Label>
 
-																																	<FlexibleDurationWrapper
-																																		id={`providerTokenLimit-${index}`}
-																																		labelClassName="font-normal"
-																																		label="Maximum Tokens"
-																																		value={config.rate_limit?.token_max_limit || ""}
-																																		selectValue={config.rate_limit?.token_reset_duration || "1h"}
-																																		onChangeNumber={(value) => {
-																																			const currentRateLimit = config.rate_limit || {};
-																																			handleUpdateProviderConfig(index, "rate_limit", {
-																																				...currentRateLimit,
-																																				token_max_limit: value,
-																																			});
-																																		}}
-																																		onChangeSelect={(value) => {
-																																			const currentRateLimit = config.rate_limit || {};
-																																			handleUpdateProviderConfig(index, "rate_limit", {
-																																				...currentRateLimit,
-																																				token_reset_duration: value,
-																																			});
-																																		}}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id={`providerTokenLimit-${index}`}
+																																			label="Maximum Tokens"
+																																			limitValue={config.rate_limit?.token_max_limit || ""}
+																																			durationValue={config.rate_limit?.token_reset_duration || "1h"}
+																																			onChangeLimit={(value) => {
+																																				const currentRateLimit = config.rate_limit || {};
+																																				handleUpdateProviderConfig(index, "rate_limit", {
+																																					...currentRateLimit,
+																																					token_max_limit: value,
+																																				});
+																																			}}
+																																			onChangeDuration={(value) => {
+																																				const currentRateLimit = config.rate_limit || {};
+																																				handleUpdateProviderConfig(index, "rate_limit", {
+																																					...currentRateLimit,
+																																					token_reset_duration: value,
+																																				});
+																																			}}
+																																			labelClassName="font-normal"
+																																			limitType="tokens"
+																																		/>
 
-																																	<FlexibleDurationWrapper
-																																		id={`providerRequestLimit-${index}`}
-																																		labelClassName="font-normal"
-																																		label="Maximum Requests"
-																																		value={config.rate_limit?.request_max_limit || ""}
-																																		selectValue={config.rate_limit?.request_reset_duration || "1h"}
-																																		onChangeNumber={(value) => {
-																																			const currentRateLimit = config.rate_limit || {};
-																																			handleUpdateProviderConfig(index, "rate_limit", {
-																																				...currentRateLimit,
-																																				request_max_limit: value,
-																																			});
-																																		}}
-																																		onChangeSelect={(value) => {
-																																			const currentRateLimit = config.rate_limit || {};
-																																			handleUpdateProviderConfig(index, "rate_limit", {
-																																				...currentRateLimit,
-																																				request_reset_duration: value,
-																																			});
-																																		}}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id={`providerRequestLimit-${index}`}
+																																			label="Maximum Requests"
+																																			limitValue={config.rate_limit?.request_max_limit || ""}
+																																			durationValue={config.rate_limit?.request_reset_duration || "1h"}
+																																			onChangeLimit={(value) => {
+																																				const currentRateLimit = config.rate_limit || {};
+																																				handleUpdateProviderConfig(index, "rate_limit", {
+																																					...currentRateLimit,
+																																					request_max_limit: value,
+																																				});
+																																			}}
+																																			onChangeDuration={(value) => {
+																																				const currentRateLimit = config.rate_limit || {};
+																																				handleUpdateProviderConfig(index, "rate_limit", {
+																																					...currentRateLimit,
+																																					request_reset_duration: value,
+																																				});
+																																			}}
+																																			labelClassName="font-normal"
+																																			limitType="requests"
+																																		/>
 															</div>
 														</AccordionContent>
 													</AccordionItem>
@@ -1008,18 +1008,16 @@ export default function VirtualKeySheet({ virtualKey, teams, customers, onSave, 
 									name="budgetMaxLimit"
 									render={({ field }) => (
 										<FormItem>
-																																	<FlexibleDurationWrapper
-																																		id="budgetMaxLimit"
-																																		labelClassName="font-normal"
-																																		label="Maximum Spend (USD)"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("budgetResetDuration") || "1M"}
-																																		onChangeNumber={(value) => {
-																																			field.onChange(value);
-																																		}}
-																																		onChangeSelect={(value) => form.setValue("budgetResetDuration", value)}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id="budgetMaxLimit"
+																																			label="Maximum Spend (USD)"
+																																			limitValue={field.value || ""}
+																																			durationValue={form.watch("budgetResetDuration") || "1M"}
+																																			onChangeLimit={(value) => field.onChange(value)}
+																																			onChangeDuration={(value) => form.setValue("budgetResetDuration", value)}
+																																			labelClassName="font-normal"
+																																			limitType="currency"
+																																		/>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -1035,18 +1033,16 @@ export default function VirtualKeySheet({ virtualKey, teams, customers, onSave, 
 									name="tokenMaxLimit"
 									render={({ field }) => (
 										<FormItem>
-																																	<FlexibleDurationWrapper
-																																		id="tokenMaxLimit"
-																																		labelClassName="font-normal"
-																																		label="Maximum Tokens"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("tokenResetDuration") || "1h"}
-																																		onChangeNumber={(value) => {
-																																			field.onChange(value);
-																																		}}
-																																		onChangeSelect={(value) => form.setValue("tokenResetDuration", value)}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id="tokenMaxLimit"
+																																			label="Maximum Tokens"
+																																			limitValue={field.value || ""}
+																																			durationValue={form.watch("tokenResetDuration") || "1h"}
+																																			onChangeLimit={(value) => field.onChange(value)}
+																																			onChangeDuration={(value) => form.setValue("tokenResetDuration", value)}
+																																			labelClassName="font-normal"
+																																			limitType="tokens"
+																																		/>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -1057,18 +1053,16 @@ export default function VirtualKeySheet({ virtualKey, teams, customers, onSave, 
 									name="requestMaxLimit"
 									render={({ field }) => (
 										<FormItem>
-																																	<FlexibleDurationWrapper
-																																		id="requestMaxLimit"
-																																		labelClassName="font-normal"
-																																		label="Maximum Requests"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("requestResetDuration") || "1h"}
-																																		onChangeNumber={(value) => {
-																																			field.onChange(value);
-																																		}}
-																																		onChangeSelect={(value) => form.setValue("requestResetDuration", value)}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id="requestMaxLimit"
+																																			label="Maximum Requests"
+																																			limitValue={field.value || ""}
+																																			durationValue={form.watch("requestResetDuration") || "1h"}
+																																			onChangeLimit={(value) => field.onChange(value)}
+																																			onChangeDuration={(value) => form.setValue("requestResetDuration", value)}
+																																			labelClassName="font-normal"
+																																			limitType="requests"
+																																		/>
 											<FormMessage />
 										</FormItem>
 									)}

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormItem } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import { FlexibleDurationWrapper } from "@/components/ui/flexibleDuration";
+import { LimitInput } from "@/components/ui/limitInput";
 import { DottedSeparator } from "@/components/ui/separator";
 import { resetDurationOptions } from "@/lib/constants/governance";
 import {
@@ -214,16 +214,16 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 						name="budgetMaxLimit"
 						render={({ field }) => (
 							<FormItem>
-																												<FlexibleDurationWrapper
-																																		id="providerBudgetMaxLimit"
-																																		labelClassName="font-normal"
-																																		label="Maximum Spend (USD)"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("budgetResetDuration") || "1M"}
-																																		onChangeNumber={(value) => field.onChange(value)}
-																																		onChangeSelect={(value) => form.setValue("budgetResetDuration", value, { shouldDirty: true })}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id="providerBudgetMaxLimit"
+																																			label="Maximum Spend (USD)"
+																																			limitValue={field.value || ""}
+																																			durationValue={form.watch("budgetResetDuration") || "1M"}
+																																			onChangeLimit={(value) => field.onChange(value)}
+																																			onChangeDuration={(value) => form.setValue("budgetResetDuration", value, { shouldDirty: true })}
+																																			labelClassName="font-normal"
+																																			limitType="currency"
+																																		/>
 							</FormItem>
 						)}
 					/>
@@ -240,16 +240,16 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 						name="tokenMaxLimit"
 						render={({ field }) => (
 							<FormItem>
-																												<FlexibleDurationWrapper
-																																		id="providerTokenMaxLimit"
-																																		labelClassName="font-normal"
-																																		label="Maximum Tokens"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("tokenResetDuration") || "1h"}
-																																		onChangeNumber={(value) => field.onChange(value)}
-																																		onChangeSelect={(value) => form.setValue("tokenResetDuration", value, { shouldDirty: true })}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id="providerTokenMaxLimit"
+																																			label="Maximum Tokens"
+																																			limitValue={field.value || ""}
+																																			durationValue={form.watch("tokenResetDuration") || "1h"}
+																																			onChangeLimit={(value) => field.onChange(value)}
+																																			onChangeDuration={(value) => form.setValue("tokenResetDuration", value, { shouldDirty: true })}
+																																			labelClassName="font-normal"
+																																			limitType="tokens"
+																																		/>
 							</FormItem>
 						)}
 					/>
@@ -259,16 +259,16 @@ export function GovernanceFormFragment({ provider }: GovernanceFormFragmentProps
 						name="requestMaxLimit"
 						render={({ field }) => (
 							<FormItem>
-																												<FlexibleDurationWrapper
-																																		id="providerRequestMaxLimit"
-																																		labelClassName="font-normal"
-																																		label="Maximum Requests"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("requestResetDuration") || "1h"}
-																																		onChangeNumber={(value) => field.onChange(value)}
-																																		onChangeSelect={(value) => form.setValue("requestResetDuration", value, { shouldDirty: true })}
-																																		options={resetDurationOptions}
-																																	/>
+																																		<LimitInput
+																																			id="providerRequestMaxLimit"
+																																			label="Maximum Requests"
+																																			limitValue={field.value || ""}
+																																			durationValue={form.watch("requestResetDuration") || "1h"}
+																																			onChangeLimit={(value) => field.onChange(value)}
+																																			onChangeDuration={(value) => form.setValue("requestResetDuration", value, { shouldDirty: true })}
+																																			labelClassName="font-normal"
+																																			limitType="requests"
+																																		/>
 							</FormItem>
 						)}
 					/>

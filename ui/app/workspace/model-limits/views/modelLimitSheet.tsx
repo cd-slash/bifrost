@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { ModelMultiselect } from "@/components/ui/modelMultiselect";
-import { FlexibleDurationWrapper } from "@/components/ui/flexibleDuration";
+import { LimitInput } from "@/components/ui/limitInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DottedSeparator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -290,15 +290,15 @@ export default function ModelLimitSheet({ modelConfig, onSave, onCancel }: Model
 									name="budgetMaxLimit"
 									render={({ field }) => (
 										<FormItem>
-																												<FlexibleDurationWrapper
+																												<LimitInput
 																																		id="modelBudgetMaxLimit"
-																																		labelClassName="font-normal"
 																																		label="Maximum Spend (USD)"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("budgetResetDuration") || "1M"}
-																																		onChangeNumber={(value) => field.onChange(value)}
-																																		onChangeSelect={(value) => form.setValue("budgetResetDuration", value, { shouldDirty: true })}
-																																		options={resetDurationOptions}
+																																		limitValue={field.value || ""}
+																																		durationValue={form.watch("budgetResetDuration") || "1M"}
+																																		onChangeLimit={(value) => field.onChange(value)}
+																																		onChangeDuration={(value) => form.setValue("budgetResetDuration", value, { shouldDirty: true })}
+																																		labelClassName="font-normal"
+																																		limitType="currency"
 																																	/>
 											<FormMessage />
 										</FormItem>
@@ -317,15 +317,15 @@ export default function ModelLimitSheet({ modelConfig, onSave, onCancel }: Model
 									name="tokenMaxLimit"
 									render={({ field }) => (
 										<FormItem>
-																												<FlexibleDurationWrapper
+																												<LimitInput
 																																		id="modelTokenMaxLimit"
-																																		labelClassName="font-normal"
 																																		label="Maximum Tokens"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("tokenResetDuration") || "1h"}
-																																		onChangeNumber={(value) => field.onChange(value)}
-																																		onChangeSelect={(value) => form.setValue("tokenResetDuration", value, { shouldDirty: true })}
-																																		options={resetDurationOptions}
+																																		limitValue={field.value || ""}
+																																		durationValue={form.watch("tokenResetDuration") || "1h"}
+																																		onChangeLimit={(value) => field.onChange(value)}
+																																		onChangeDuration={(value) => form.setValue("tokenResetDuration", value, { shouldDirty: true })}
+																																		labelClassName="font-normal"
+																																		limitType="tokens"
 																																	/>
 											<FormMessage />
 										</FormItem>
@@ -337,15 +337,15 @@ export default function ModelLimitSheet({ modelConfig, onSave, onCancel }: Model
 									name="requestMaxLimit"
 									render={({ field }) => (
 										<FormItem>
-																												<FlexibleDurationWrapper
+																												<LimitInput
 																																		id="modelRequestMaxLimit"
-																																		labelClassName="font-normal"
 																																		label="Maximum Requests"
-																																		value={field.value || ""}
-																																		selectValue={form.watch("requestResetDuration") || "1h"}
-																																		onChangeNumber={(value) => field.onChange(value)}
-																																		onChangeSelect={(value) => form.setValue("requestResetDuration", value, { shouldDirty: true })}
-																																		options={resetDurationOptions}
+																																		limitValue={field.value || ""}
+																																		durationValue={form.watch("requestResetDuration") || "1h"}
+																																		onChangeLimit={(value) => field.onChange(value)}
+																																		onChangeDuration={(value) => form.setValue("requestResetDuration", value, { shouldDirty: true })}
+																																		labelClassName="font-normal"
+																																		limitType="requests"
 																																	/>
 											<FormMessage />
 										</FormItem>
