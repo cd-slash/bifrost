@@ -61,13 +61,30 @@ export function LimitInput({
 	};
 
 	return (
-		<div className="space-y-2">
-			{/* Label for the limit */}
-			<Label htmlFor={id} className={labelClassName}>
-				{label}
-			</Label>
+		<div className="space-y-4">
+			{/* Row 1: All Labels aligned at top */}
+			<div className="flex w-full gap-3">
+				{/* Limit Label - 1/2 width */}
+				<div className="w-1/2">
+					<Label htmlFor={id} className={labelClassName}>
+						{label}
+					</Label>
+				</div>
+				{/* Reset Period Label - 1/4 width */}
+				<div className="w-1/4">
+					<Label htmlFor={`${id}-duration`} className="text-xs font-normal">
+						Reset Period
+					</Label>
+				</div>
+				{/* Unit Label - 1/4 width */}
+				<div className="w-1/4">
+					<Label htmlFor={`${id}-unit`} className="text-xs font-normal">
+						Unit
+					</Label>
+				</div>
+			</div>
 			
-			{/* Three-column layout: Limit (1/2) | Reset Period (1/4) | Unit (1/4) */}
+			{/* Row 2: All Inputs aligned */}
 			<div className="flex w-full items-start gap-3">
 				{/* Limit Value Input - 1/2 width */}
 				<div className="w-1/2 space-y-1">
@@ -91,10 +108,7 @@ export function LimitInput({
 				</div>
 
 				{/* Reset Duration Input - 1/4 width */}
-				<div className="w-1/4 space-y-1">
-					<Label htmlFor={`${id}-duration`} className="text-xs font-normal">
-						Reset Period
-					</Label>
+				<div className="w-1/4">
 					<DurationNumberInput
 						id={`${id}-duration`}
 						value={durationValue}
@@ -104,10 +118,7 @@ export function LimitInput({
 				</div>
 
 				{/* Unit Selector - 1/4 width */}
-				<div className="w-1/4 space-y-1">
-					<Label htmlFor={`${id}-unit`} className="text-xs font-normal">
-						Unit
-					</Label>
+				<div className="w-1/4">
 					<DurationUnitSelect
 						id={`${id}-unit`}
 						value={durationValue}
