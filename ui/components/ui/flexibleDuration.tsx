@@ -95,7 +95,7 @@ export function FlexibleDurationInput({
 	};
 
 	return (
-		<div className="flex w-full items-end gap-3">
+		<div className="flex w-full items-start gap-3">
 			<div className="flex-1 space-y-2">
 				<Label htmlFor={id} className={labelClassName}>
 					{label}
