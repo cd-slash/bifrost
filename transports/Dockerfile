@@ -38,13 +38,12 @@ COPY transports/ ./
 
 COPY --from=ui-builder /app/out ./bifrost-http/ui
 
-# Build the binary with CGO enabled and static SQLite linking
+# Build the binary with CGO enabled and dynamic linking
 ENV GOWORK=off
 ARG VERSION=unknown
 RUN go build \
-    -ldflags="-w -s -X main.Version=v${VERSION} -extldflags '-static'" \
+    -ldflags="-w -s -X main.Version=v${VERSION}" \
     -a -trimpath \
-    -tags "sqlite_static" \
     -o /app/transports/main \
     ./bifrost-http
 
@@ -56,10 +55,10 @@ FROM alpine:3.22
 WORKDIR /app
 
 # Install runtime dependencies for CGO-enabled binary
-# musl: C standard library (required for CGO binaries)
+# musl/sqlite-libs: C runtime and sqlite for CGO-enabled binaries
 # libgcc: GCC runtime library
 # ca-certificates: For HTTPS connections
-RUN apk add --no-cache musl libgcc ca-certificates
+RUN apk add --no-cache musl libgcc sqlite-libs ca-certificates
 
 # Create data directory and set up user
 COPY --from=builder /app/transports/main ./main
