@@ -7,6 +7,7 @@ import { LogsDataTable } from "@/app/workspace/logs/views/logsTable";
 import { LogsVolumeChart } from "@/app/workspace/logs/views/logsVolumeChart";
 import FullPageLoader from "@/components/fullPageLoader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -23,21 +24,36 @@ import type {
 	ContentBlock,
 	LogEntry,
 	LogFilters,
-	LogsHistogramResponse,
 	LogStats,
+	LogsHistogramResponse,
 	Pagination,
 } from "@/lib/types/logs";
 import { dateUtils } from "@/lib/types/logs";
 import { RbacOperation, RbacResource, useRbac } from "@enterprise/lib";
-import { AlertCircle, BarChart, CheckCircle, Clock, DollarSign, Hash } from "lucide-react";
-import { parseAsArrayOf, parseAsBoolean, parseAsInteger, parseAsString, useQueryStates } from "nuqs";
+import {
+	AlertCircle,
+	BarChart,
+	CheckCircle,
+	Clock,
+	DollarSign,
+	Hash,
+} from "lucide-react";
+import {
+	parseAsArrayOf,
+	parseAsBoolean,
+	parseAsInteger,
+	parseAsString,
+	useQueryStates,
+} from "nuqs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export default function LogsPage() {
 	const [logs, setLogs] = useState<LogEntry[]>([]);
 	const [totalItems, setTotalItems] = useState(0); // changes with filters
 	const [stats, setStats] = useState<LogStats | null>(null);
-	const [histogram, setHistogram] = useState<LogsHistogramResponse | null>(null);
+	const [histogram, setHistogram] = useState<LogsHistogramResponse | null>(
+		null,
+	);
 	const [initialLoading, setInitialLoading] = useState(true); // on initial load
 	const [fetchingLogs, setFetchingLogs] = useState(false); // on pagination/filters change
 	const [fetchingStats, setFetchingStats] = useState(false); // on stats fetch
@@ -57,7 +73,9 @@ export default function LogsPage() {
 	const [isChartOpen, setIsChartOpen] = useState(true);
 
 	// Debouncing for streaming updates (client-side)
-	const streamingUpdateTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+	const streamingUpdateTimeouts = useRef<
+		Map<string, ReturnType<typeof setTimeout>>
+	>(new Map());
 
 	// Track if user has manually modified the time range
 	const userModifiedTimeRange = useRef<boolean>(false);
@@ -107,8 +125,12 @@ export default function LogsPage() {
 			}
 
 			// Check if current time range matches the initial defaults (within tolerance)
-			const startTimeDiff = Math.abs(urlState.start_time - initialDefaults.current.startTime);
-			const endTimeDiff = Math.abs(urlState.end_time - initialDefaults.current.endTime);
+			const startTimeDiff = Math.abs(
+				urlState.start_time - initialDefaults.current.startTime,
+			);
+			const endTimeDiff = Math.abs(
+				urlState.end_time - initialDefaults.current.endTime,
+			);
 			const tolerance = 5; // 5 seconds tolerance for slight timing differences
 
 			// Only refresh if current values match the initial defaults
@@ -181,7 +203,10 @@ export default function LogsPage() {
 	const setFilters = useCallback(
 		(newFilters: LogFilters) => {
 			// Mark time range as user-modified only if start_time or end_time actually changed
-			if (newFilters.start_time !== filters.start_time || newFilters.end_time !== filters.end_time) {
+			if (
+				newFilters.start_time !== filters.start_time ||
+				newFilters.end_time !== filters.end_time
+			) {
 				userModifiedTimeRange.current = true;
 			}
 
@@ -194,9 +219,14 @@ export default function LogsPage() {
 				virtual_key_ids: newFilters.virtual_key_ids || [],
 				routing_rule_ids: newFilters.routing_rule_ids || [],
 				content_search: newFilters.content_search || "",
-				start_time: newFilters.start_time ? dateUtils.toUnixTimestamp(new Date(newFilters.start_time)) : undefined,
-				end_time: newFilters.end_time ? dateUtils.toUnixTimestamp(new Date(newFilters.end_time)) : undefined,
-				missing_cost_only: newFilters.missing_cost_only ?? filters.missing_cost_only ?? false,
+				start_time: newFilters.start_time
+					? dateUtils.toUnixTimestamp(new Date(newFilters.start_time))
+					: undefined,
+				end_time: newFilters.end_time
+					? dateUtils.toUnixTimestamp(new Date(newFilters.end_time))
+					: undefined,
+				missing_cost_only:
+					newFilters.missing_cost_only ?? filters.missing_cost_only ?? false,
 				offset: 0,
 			});
 		},
@@ -247,7 +277,13 @@ export default function LogsPage() {
 		return currentRange < defaultRange * 0.9;
 	}, [urlState.start_time, urlState.end_time]);
 
-	const latest = useRef({ logs, filters, pagination, showEmptyState, liveEnabled });
+	const latest = useRef({
+		logs,
+		filters,
+		pagination,
+		showEmptyState,
+		liveEnabled,
+	});
 	useEffect(() => {
 		latest.current = { logs, filters, pagination, showEmptyState, liveEnabled };
 	}, [logs, filters, pagination, showEmptyState, liveEnabled]);
@@ -265,179 +301,209 @@ export default function LogsPage() {
 		[deleteLogs],
 	);
 
-	const handleLogMessage = useCallback((log: LogEntry, operation: "create" | "update") => {
-		const { logs, filters, pagination, showEmptyState, liveEnabled } = latest.current;
-		// If we were in empty state, exit it since we now have logs
-		if (showEmptyState) {
-			setShowEmptyState(false);
-		}
-
-		if (operation === "create") {
-			// Handle new log creation
-			// Only prepend the new log if we're on the first page and sorted by timestamp desc
-			if (pagination.offset === 0 && pagination.sort_by === "timestamp" && pagination.order === "desc") {
-				// Check if the log matches current filters
-				if (!matchesFilters(log, filters, !liveEnabled)) {
-					return;
-				}
-
-				setLogs((prevLogs: LogEntry[]) => {
-					// Check if log already exists (prevent duplicates)
-					if (prevLogs.some((existingLog) => existingLog.id === log.id)) {
-						return prevLogs;
-					}
-
-					// Remove the last log if we're at the page limit
-					const updatedLogs = [log, ...prevLogs];
-					if (updatedLogs.length > pagination.limit) {
-						updatedLogs.pop();
-					}
-					return updatedLogs;
-				});
-
-				// Update selectedLog if it matches (for detail sheet real-time updates)
-				setSelectedLog((prevSelectedLog) => {
-					if (prevSelectedLog && prevSelectedLog.id === log.id) {
-						return log;
-					}
-					return prevSelectedLog;
-				});
-
-				setTotalItems((prev: number) => prev + 1);
+	const handleLogMessage = useCallback(
+		(log: LogEntry, operation: "create" | "update") => {
+			const { logs, filters, pagination, showEmptyState, liveEnabled } =
+				latest.current;
+			// If we were in empty state, exit it since we now have logs
+			if (showEmptyState) {
+				setShowEmptyState(false);
 			}
-		} else if (operation === "update") {
-			// Handle log updates with debouncing for streaming
 
-			// Check if the log exists in our current list
-			const logExists = logs.some((existingLog) => existingLog.id === log.id);
-
-			if (!logExists) {
-				// Fallback: if log doesn't exist, treat as create (e.g., user was on different page when created)
-				if (pagination.offset === 0 && pagination.sort_by === "timestamp" && pagination.order === "desc") {
+			if (operation === "create") {
+				// Handle new log creation
+				// Only prepend the new log if we're on the first page and sorted by timestamp desc
+				if (
+					pagination.offset === 0 &&
+					pagination.sort_by === "timestamp" &&
+					pagination.order === "desc"
+				) {
 					// Check if the log matches current filters
-					if (matchesFilters(log, filters, !liveEnabled)) {
-						setLogs((prevLogs: LogEntry[]) => {
-							// Double-check it doesn't exist (race condition protection)
-							if (prevLogs.some((existingLog) => existingLog.id === log.id)) {
-								return prevLogs.map((existingLog) => (existingLog.id === log.id ? log : existingLog));
-							}
-
-							// Add as new log
-							const updatedLogs = [log, ...prevLogs];
-							if (updatedLogs.length > pagination.limit) {
-								updatedLogs.pop();
-							}
-							return updatedLogs;
-						});
+					if (!matchesFilters(log, filters, !liveEnabled)) {
+						return;
 					}
+
+					setLogs((prevLogs: LogEntry[]) => {
+						// Check if log already exists (prevent duplicates)
+						if (prevLogs.some((existingLog) => existingLog.id === log.id)) {
+							return prevLogs;
+						}
+
+						// Remove the last log if we're at the page limit
+						const updatedLogs = [log, ...prevLogs];
+						if (updatedLogs.length > pagination.limit) {
+							updatedLogs.pop();
+						}
+						return updatedLogs;
+					});
+
+					// Update selectedLog if it matches (for detail sheet real-time updates)
+					setSelectedLog((prevSelectedLog) => {
+						if (prevSelectedLog && prevSelectedLog.id === log.id) {
+							return log;
+						}
+						return prevSelectedLog;
+					});
+
+					setTotalItems((prev: number) => prev + 1);
 				}
-			} else {
-				// Normal update flow for existing logs
-				if (log.stream) {
-					// For streaming logs, debounce updates to avoid UI thrashing
-					const existingTimeout = streamingUpdateTimeouts.current.get(log.id);
-					if (existingTimeout) {
-						clearTimeout(existingTimeout);
+			} else if (operation === "update") {
+				// Handle log updates with debouncing for streaming
+
+				// Check if the log exists in our current list
+				const logExists = logs.some((existingLog) => existingLog.id === log.id);
+
+				if (!logExists) {
+					// Fallback: if log doesn't exist, treat as create (e.g., user was on different page when created)
+					if (
+						pagination.offset === 0 &&
+						pagination.sort_by === "timestamp" &&
+						pagination.order === "desc"
+					) {
+						// Check if the log matches current filters
+						if (matchesFilters(log, filters, !liveEnabled)) {
+							setLogs((prevLogs: LogEntry[]) => {
+								// Double-check it doesn't exist (race condition protection)
+								if (prevLogs.some((existingLog) => existingLog.id === log.id)) {
+									return prevLogs.map((existingLog) =>
+										existingLog.id === log.id ? log : existingLog,
+									);
+								}
+
+								// Add as new log
+								const updatedLogs = [log, ...prevLogs];
+								if (updatedLogs.length > pagination.limit) {
+									updatedLogs.pop();
+								}
+								return updatedLogs;
+							});
+						}
 					}
-
-					const timeout = setTimeout(() => {
-						updateExistingLog(log);
-						streamingUpdateTimeouts.current.delete(log.id);
-					}, 100); // 100ms debounce for streaming updates
-
-					streamingUpdateTimeouts.current.set(log.id, timeout);
 				} else {
-					// For non-streaming updates, update immediately
-					updateExistingLog(log);
-				}
-
-				// Update stats for completed requests
-				if (log.status == "success" || log.status == "error") {
-					setStats((prevStats) => {
-						if (!prevStats) return prevStats;
-
-						const newStats = { ...prevStats };
-						newStats.total_requests += 1;
-
-						// Update success rate
-						const successCount = (prevStats.success_rate / 100) * prevStats.total_requests;
-						const newSuccessCount = log.status === "success" ? successCount + 1 : successCount;
-						newStats.success_rate = (newSuccessCount / newStats.total_requests) * 100;
-
-						// Update average latency
-						if (log.latency) {
-							const totalLatency = prevStats.average_latency * prevStats.total_requests;
-							newStats.average_latency = (totalLatency + log.latency) / newStats.total_requests;
+					// Normal update flow for existing logs
+					if (log.stream) {
+						// For streaming logs, debounce updates to avoid UI thrashing
+						const existingTimeout = streamingUpdateTimeouts.current.get(log.id);
+						if (existingTimeout) {
+							clearTimeout(existingTimeout);
 						}
 
-						// Update total tokens
-						if (log.token_usage) {
-							newStats.total_tokens += log.token_usage.total_tokens;
-						}
+						const timeout = setTimeout(() => {
+							updateExistingLog(log);
+							streamingUpdateTimeouts.current.delete(log.id);
+						}, 100); // 100ms debounce for streaming updates
 
-						// Update total cost
-						if (log.cost) {
-							newStats.total_cost += log.cost;
-						}
+						streamingUpdateTimeouts.current.set(log.id, timeout);
+					} else {
+						// For non-streaming updates, update immediately
+						updateExistingLog(log);
+					}
 
-						return newStats;
-					});
+					// Update stats for completed requests
+					if (log.status == "success" || log.status == "error") {
+						setStats((prevStats) => {
+							if (!prevStats) return prevStats;
 
-					// Update histogram for completed requests
-					setHistogram((prevHistogram) => {
-						if (
-							!prevHistogram ||
-							typeof prevHistogram.bucket_size_seconds !== 'number' ||
-							prevHistogram.bucket_size_seconds <= 0
-						) {
-							return prevHistogram
-						}
+							const newStats = { ...prevStats };
+							newStats.total_requests += 1;
 
-						const logTime = new Date(log.timestamp).getTime();
-						const bucketSizeMs = prevHistogram.bucket_size_seconds * 1000;
-						const bucketTime = Math.floor(logTime / bucketSizeMs) * bucketSizeMs;
+							// Update success rate
+							const successCount =
+								(prevStats.success_rate / 100) * prevStats.total_requests;
+							const newSuccessCount =
+								log.status === "success" ? successCount + 1 : successCount;
+							newStats.success_rate =
+								(newSuccessCount / newStats.total_requests) * 100;
 
-						const updatedBuckets = [...prevHistogram.buckets];
-						const bucketIndex = updatedBuckets.findIndex((b) => {
-							const bTime = new Date(b.timestamp).getTime();
-							return Math.floor(bTime / bucketSizeMs) * bucketSizeMs === bucketTime;
+							// Update average latency
+							if (log.latency) {
+								const totalLatency =
+									prevStats.average_latency * prevStats.total_requests;
+								newStats.average_latency =
+									(totalLatency + log.latency) / newStats.total_requests;
+							}
+
+							// Update total tokens
+							if (log.token_usage) {
+								newStats.total_tokens += log.token_usage.total_tokens;
+							}
+
+							// Update total cost
+							if (log.cost) {
+								newStats.total_cost += log.cost;
+							}
+
+							return newStats;
 						});
 
-						if (bucketIndex >= 0) {
-							// Update existing bucket
-							updatedBuckets[bucketIndex] = {
-								...updatedBuckets[bucketIndex],
-								count: updatedBuckets[bucketIndex].count + 1,
-								success: updatedBuckets[bucketIndex].success + (log.status === "success" ? 1 : 0),
-								error: updatedBuckets[bucketIndex].error + (log.status === "error" ? 1 : 0),
-							};
-						} else {
-							// Create new bucket for this timestamp
-							const newBucket = {
-								timestamp: new Date(bucketTime).toISOString(),
-								count: 1,
-								success: log.status === "success" ? 1 : 0,
-								error: log.status === "error" ? 1 : 0,
-							};
-							// Insert in sorted order
-							const insertIndex = updatedBuckets.findIndex((b) => new Date(b.timestamp).getTime() > bucketTime);
-							if (insertIndex === -1) {
-								updatedBuckets.push(newBucket);
-							} else {
-								updatedBuckets.splice(insertIndex, 0, newBucket);
+						// Update histogram for completed requests
+						setHistogram((prevHistogram) => {
+							if (
+								!prevHistogram ||
+								typeof prevHistogram.bucket_size_seconds !== "number" ||
+								prevHistogram.bucket_size_seconds <= 0
+							) {
+								return prevHistogram;
 							}
-						}
 
-						return { ...prevHistogram, buckets: updatedBuckets };
-					});
+							const logTime = new Date(log.timestamp).getTime();
+							const bucketSizeMs = prevHistogram.bucket_size_seconds * 1000;
+							const bucketTime =
+								Math.floor(logTime / bucketSizeMs) * bucketSizeMs;
+
+							const updatedBuckets = [...prevHistogram.buckets];
+							const bucketIndex = updatedBuckets.findIndex((b) => {
+								const bTime = new Date(b.timestamp).getTime();
+								return (
+									Math.floor(bTime / bucketSizeMs) * bucketSizeMs === bucketTime
+								);
+							});
+
+							if (bucketIndex >= 0) {
+								// Update existing bucket
+								updatedBuckets[bucketIndex] = {
+									...updatedBuckets[bucketIndex],
+									count: updatedBuckets[bucketIndex].count + 1,
+									success:
+										updatedBuckets[bucketIndex].success +
+										(log.status === "success" ? 1 : 0),
+									error:
+										updatedBuckets[bucketIndex].error +
+										(log.status === "error" ? 1 : 0),
+								};
+							} else {
+								// Create new bucket for this timestamp
+								const newBucket = {
+									timestamp: new Date(bucketTime).toISOString(),
+									count: 1,
+									success: log.status === "success" ? 1 : 0,
+									error: log.status === "error" ? 1 : 0,
+								};
+								// Insert in sorted order
+								const insertIndex = updatedBuckets.findIndex(
+									(b) => new Date(b.timestamp).getTime() > bucketTime,
+								);
+								if (insertIndex === -1) {
+									updatedBuckets.push(newBucket);
+								} else {
+									updatedBuckets.splice(insertIndex, 0, newBucket);
+								}
+							}
+
+							return { ...prevHistogram, buckets: updatedBuckets };
+						});
+					}
 				}
 			}
-		}
-	}, []);
+		},
+		[],
+	);
 
 	const updateExistingLog = useCallback((updatedLog: LogEntry) => {
 		setLogs((prevLogs: LogEntry[]) => {
-			return prevLogs.map((existingLog) => (existingLog.id === updatedLog.id ? updatedLog : existingLog));
+			return prevLogs.map((existingLog) =>
+				existingLog.id === updatedLog.id ? updatedLog : existingLog,
+			);
 		});
 
 		// Update selectedLog if it matches the updated log (for real-time detail sheet updates)
@@ -468,7 +534,9 @@ export default function LogsPage() {
 	// Cleanup timeouts on unmount
 	useEffect(() => {
 		return () => {
-			streamingUpdateTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+			streamingUpdateTimeouts.current.forEach((timeout) =>
+				clearTimeout(timeout),
+			);
 			streamingUpdateTimeouts.current.clear();
 		};
 	}, []);
@@ -496,7 +564,9 @@ export default function LogsPage() {
 				setShowEmptyState(result.data ? !result.data.has_logs : true);
 			}
 		} catch {
-			setError("Cannot fetch logs. Please check if logs are enabled in your Bifrost config.");
+			setError(
+				"Cannot fetch logs. Please check if logs are enabled in your Bifrost config.",
+			);
 			setLogs([]);
 			setTotalItems(0);
 			setShowEmptyState(true);
@@ -603,11 +673,22 @@ export default function LogsPage() {
 	};
 
 	// Helper function to check if a log matches the current filters
-	const matchesFilters = (log: LogEntry, filters: LogFilters, applyTimeFilters = true): boolean => {
-		if (filters.missing_cost_only && typeof log.cost === "number" && log.cost > 0) {
+	const matchesFilters = (
+		log: LogEntry,
+		filters: LogFilters,
+		applyTimeFilters = true,
+	): boolean => {
+		if (
+			filters.missing_cost_only &&
+			typeof log.cost === "number" &&
+			log.cost > 0
+		) {
 			return false;
 		}
-		if (filters.providers?.length && !filters.providers.includes(log.provider)) {
+		if (
+			filters.providers?.length &&
+			!filters.providers.includes(log.provider)
+		) {
 			return false;
 		}
 		if (filters.models?.length && !filters.models.includes(log.model)) {
@@ -619,41 +700,71 @@ export default function LogsPage() {
 		if (filters.objects?.length && !filters.objects.includes(log.object)) {
 			return false;
 		}
-		if (filters.selected_key_ids?.length && !filters.selected_key_ids.includes(log.selected_key_id)) {
+		if (
+			filters.selected_key_ids?.length &&
+			!filters.selected_key_ids.includes(log.selected_key_id)
+		) {
 			return false;
 		}
 		if (filters.virtual_key_ids?.length) {
-			if (!log.virtual_key_id || !filters.virtual_key_ids.includes(log.virtual_key_id)) {
+			if (
+				!log.virtual_key_id ||
+				!filters.virtual_key_ids.includes(log.virtual_key_id)
+			) {
 				return false;
 			}
 		}
 		if (filters.routing_rule_ids?.length) {
-			if (!log.routing_rule_id || !filters.routing_rule_ids.includes(log.routing_rule_id)) {
+			if (
+				!log.routing_rule_id ||
+				!filters.routing_rule_ids.includes(log.routing_rule_id)
+			) {
 				return false;
 			}
 		}
-		if (filters.start_time && new Date(log.timestamp) < new Date(filters.start_time)) {
+		if (
+			filters.start_time &&
+			new Date(log.timestamp) < new Date(filters.start_time)
+		) {
 			return false;
 		}
-		if (applyTimeFilters && filters.end_time && new Date(log.timestamp) > new Date(filters.end_time)) {
+		if (
+			applyTimeFilters &&
+			filters.end_time &&
+			new Date(log.timestamp) > new Date(filters.end_time)
+		) {
 			return false;
 		}
-		if (filters.min_latency && (!log.latency || log.latency < filters.min_latency)) {
+		if (
+			filters.min_latency &&
+			(!log.latency || log.latency < filters.min_latency)
+		) {
 			return false;
 		}
-		if (filters.max_latency && (!log.latency || log.latency > filters.max_latency)) {
+		if (
+			filters.max_latency &&
+			(!log.latency || log.latency > filters.max_latency)
+		) {
 			return false;
 		}
-		if (filters.min_tokens && (!log.token_usage || log.token_usage.total_tokens < filters.min_tokens)) {
+		if (
+			filters.min_tokens &&
+			(!log.token_usage || log.token_usage.total_tokens < filters.min_tokens)
+		) {
 			return false;
 		}
-		if (filters.max_tokens && (!log.token_usage || log.token_usage.total_tokens > filters.max_tokens)) {
+		if (
+			filters.max_tokens &&
+			(!log.token_usage || log.token_usage.total_tokens > filters.max_tokens)
+		) {
 			return false;
 		}
 		if (filters.content_search) {
 			const search = filters.content_search.toLowerCase();
 			const content = [
-				...(log.input_history || []).map((msg: ChatMessage) => getMessageText(msg.content)),
+				...(log.input_history || []).map((msg: ChatMessage) =>
+					getMessageText(msg.content),
+				),
 				log.output_message ? getMessageText(log.output_message.content) : "",
 			]
 				.join(" ")
@@ -670,34 +781,68 @@ export default function LogsPage() {
 		() => [
 			{
 				title: "Total Requests",
-				value: fetchingStats ? <Skeleton className="h-8 w-20" /> : stats?.total_requests.toLocaleString() || "-",
+				value: fetchingStats ? (
+					<Skeleton className="h-8 w-20" />
+				) : (
+					stats?.total_requests.toLocaleString() || "-"
+				),
 				icon: <BarChart className="size-4" />,
 			},
 			{
 				title: "Success Rate",
-				value: fetchingStats ? <Skeleton className="h-8 w-16" /> : stats ? `${stats.success_rate.toFixed(2)}%` : "-",
+				value: fetchingStats ? (
+					<Skeleton className="h-8 w-16" />
+				) : stats ? (
+					`${stats.success_rate.toFixed(2)}%`
+				) : (
+					"-"
+				),
 				icon: <CheckCircle className="size-4" />,
 			},
 			{
 				title: "Avg Latency",
-				value: fetchingStats ? <Skeleton className="h-8 w-20" /> : stats ? `${stats.average_latency.toFixed(2)}ms` : "-",
+				value: fetchingStats ? (
+					<Skeleton className="h-8 w-20" />
+				) : stats ? (
+					`${stats.average_latency.toFixed(2)}ms`
+				) : (
+					"-"
+				),
 				icon: <Clock className="size-4" />,
 			},
 			{
 				title: "Total Tokens",
-				value: fetchingStats ? <Skeleton className="h-8 w-24" /> : stats?.total_tokens.toLocaleString() || "-",
+				value: fetchingStats ? (
+					<Skeleton className="h-8 w-24" />
+				) : (
+					stats?.total_tokens.toLocaleString() || "-"
+				),
 				icon: <Hash className="size-4" />,
 			},
 			{
 				title: "Total Cost",
-				value: fetchingStats ? <Skeleton className="h-8 w-20" /> : stats ? `$${(stats.total_cost ?? 0).toFixed(4)}` : "-",
+				value: fetchingStats ? (
+					<Skeleton className="h-8 w-20" />
+				) : stats ? (
+					`$${(stats.total_cost ?? 0).toFixed(4)}`
+				) : (
+					"-"
+				),
 				icon: <DollarSign className="size-4" />,
 			},
 		],
 		[stats, fetchingStats],
 	);
 
-	const columns = useMemo(() => createColumns(handleDelete, hasDeleteAccess), [handleDelete, hasDeleteAccess]);
+	const columns = useMemo(
+		() => createColumns(handleDelete, hasDeleteAccess),
+		[handleDelete, hasDeleteAccess],
+	);
+
+	const selectedObjectView = useMemo(() => {
+		if (urlState.objects.length === 1) return urlState.objects[0];
+		return "all";
+	}, [urlState.objects]);
 
 	return (
 		<div className="dark:bg-card h-[calc(100dvh-3.3rem)] max-h-[calc(100dvh-1.5rem)] bg-white">
@@ -708,14 +853,50 @@ export default function LogsPage() {
 			) : (
 				<div className="mx-auto flex h-full w-full flex-col">
 					<div className="flex flex-1 flex-col gap-2 overflow-hidden">
+						<div className="mb-1 flex shrink-0 items-center gap-2">
+							<Button
+								type="button"
+								variant={selectedObjectView === "all" ? "default" : "outline"}
+								size="sm"
+								onClick={() => setUrlState({ objects: [], offset: 0 })}
+							>
+								All Logs
+							</Button>
+							<Button
+								type="button"
+								variant={
+									selectedObjectView === "transcription" ? "default" : "outline"
+								}
+								size="sm"
+								onClick={() =>
+									setUrlState({ objects: ["transcription"], offset: 0 })
+								}
+							>
+								STT Transcriptions
+							</Button>
+							<Button
+								type="button"
+								variant={
+									selectedObjectView === "speech" ? "default" : "outline"
+								}
+								size="sm"
+								onClick={() => setUrlState({ objects: ["speech"], offset: 0 })}
+							>
+								TTS Generations
+							</Button>
+						</div>
 						{/* Quick Stats */}
 						<div className="grid shrink-0 grid-cols-1 gap-4 md:grid-cols-5">
 							{statCards.map((card) => (
 								<Card key={card.title} className="py-4 shadow-none">
 									<CardContent className="flex items-center justify-between px-4">
 										<div>
-											<div className="text-muted-foreground text-xs">{card.title}</div>
-											<div className="font-mono text-2xl font-medium">{card.value}</div>
+											<div className="text-muted-foreground text-xs">
+												{card.title}
+											</div>
+											<div className="font-mono text-2xl font-medium">
+												{card.value}
+											</div>
 										</div>
 									</CardContent>
 								</Card>

@@ -4,11 +4,24 @@ import { CodeEditor } from "@/app/workspace/logs/views/codeEditor";
 import ConfirmDeletePluginDialog from "@/app/workspace/plugins/dialogs/confirmDeletePluginDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+	Form,
+	FormControl,
+	FormDescription,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { setPluginFormDirtyState, useAppDispatch, useAppSelector, useUpdatePluginMutation } from "@/lib/store";
-import { PluginType } from "@/lib/types/plugins";
+import {
+	setPluginFormDirtyState,
+	useAppDispatch,
+	useAppSelector,
+	useUpdatePluginMutation,
+} from "@/lib/store";
+import type { PluginType } from "@/lib/types/plugins";
 import { cn } from "@/lib/utils";
 import { RbacOperation, RbacResource, useRbac } from "@enterprise/lib";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,6 +46,37 @@ const pluginFormSchema = z.object({
 
 type PluginFormValues = z.infer<typeof pluginFormSchema>;
 
+type DictionaryReplacement = { from: string; to: string };
+type DictionaryModelOverride = {
+	enabled?: boolean;
+	inherit_global?: boolean;
+	replacements?: DictionaryReplacement[];
+};
+type SttDictionaryConfig = {
+	case_sensitive?: boolean;
+	use_regex?: boolean;
+	replacements?: DictionaryReplacement[];
+	model_overrides?: Record<string, DictionaryModelOverride>;
+};
+
+const parseSttDictionaryConfig = (
+	raw: string | undefined,
+): SttDictionaryConfig => {
+	if (!raw?.trim()) return {};
+	try {
+		const parsed = JSON.parse(raw);
+		if (parsed && typeof parsed === "object") {
+			return parsed as SttDictionaryConfig;
+		}
+	} catch {
+		return {};
+	}
+	return {};
+};
+
+const stringifyConfig = (config: SttDictionaryConfig): string =>
+	JSON.stringify(config, null, 2);
+
 const getPluginTypeColor = (type: PluginType) => {
 	switch (type) {
 		case "llm":
@@ -48,8 +92,14 @@ const getPluginTypeColor = (type: PluginType) => {
 
 export default function PluginsView(props: Props) {
 	const dispatch = useAppDispatch();
-	const hasUpdatePluginAccess = useRbac(RbacResource.Plugins, RbacOperation.Update);
-	const hasDeletePluginAccess = useRbac(RbacResource.Plugins, RbacOperation.Delete);
+	const hasUpdatePluginAccess = useRbac(
+		RbacResource.Plugins,
+		RbacOperation.Update,
+	);
+	const hasDeletePluginAccess = useRbac(
+		RbacResource.Plugins,
+		RbacOperation.Delete,
+	);
 	const [updatePlugin, { isLoading }] = useUpdatePluginMutation();
 	const selectedPlugin = useAppSelector((state) => state.plugin.selectedPlugin);
 	const [showConfig, setShowConfig] = useState(false);
@@ -61,25 +111,33 @@ export default function PluginsView(props: Props) {
 			name: selectedPlugin?.name || "",
 			enabled: selectedPlugin?.enabled || false,
 			path: selectedPlugin?.path || undefined,
-			config: selectedPlugin?.config ? JSON.stringify(selectedPlugin.config, null, 2) : undefined,
-			hasConfig: Boolean(selectedPlugin?.config && Object.keys(selectedPlugin.config).length > 0),
+			config: selectedPlugin?.config
+				? JSON.stringify(selectedPlugin.config, null, 2)
+				: undefined,
+			hasConfig: Boolean(
+				selectedPlugin?.config && Object.keys(selectedPlugin.config).length > 0,
+			),
 		},
 	});
 
 	// Update form when selectedPlugin changes
 	useEffect(() => {
 		if (selectedPlugin) {
-			const hasConfig = Boolean(selectedPlugin.config && Object.keys(selectedPlugin.config).length > 0);
+			const hasConfig = Boolean(
+				selectedPlugin.config && Object.keys(selectedPlugin.config).length > 0,
+			);
 			setShowConfig(hasConfig);
 			form.reset({
 				name: selectedPlugin.name,
 				enabled: selectedPlugin.enabled,
 				path: selectedPlugin.path,
-				config: hasConfig ? JSON.stringify(selectedPlugin.config, null, 2) : undefined,
+				config: hasConfig
+					? JSON.stringify(selectedPlugin.config, null, 2)
+					: undefined,
 				hasConfig,
 			});
 		}
-	}, [selectedPlugin]);
+	}, [selectedPlugin, form]);
 
 	// Track form dirty state
 	useEffect(() => {
@@ -91,7 +149,7 @@ export default function PluginsView(props: Props) {
 		if (!selectedPlugin) return;
 
 		try {
-			let config;
+			let config: unknown | undefined;
 			if (values.hasConfig && values.config) {
 				try {
 					config = JSON.parse(values.config);
@@ -155,16 +213,26 @@ export default function PluginsView(props: Props) {
 	};
 
 	const isErrorLog = (log: string) => {
-		const errorKeywords = ["error", "failed", "exception", "panic", "fatal", "ERR"];
-		return errorKeywords.some((keyword) => log.toLowerCase().includes(keyword.toLowerCase()));
+		const errorKeywords = [
+			"error",
+			"failed",
+			"exception",
+			"panic",
+			"fatal",
+			"ERR",
+		];
+		return errorKeywords.some((keyword) =>
+			log.toLowerCase().includes(keyword.toLowerCase()),
+		);
 	};
-
-
 
 	return (
 		<div className="ml-4 w-full">
 			<Form {...form}>
-				<form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
+				<form
+					onSubmit={form.handleSubmit(onSubmit, onError)}
+					className="space-y-6"
+				>
 					<div className="">
 						<h3 className="mb-4 text-lg font-semibold">Plugin Configuration</h3>
 						<div className="space-y-6">
@@ -175,7 +243,13 @@ export default function PluginsView(props: Props) {
 									<FormItem>
 										<FormLabel>Name</FormLabel>
 										<FormControl>
-											<Input placeholder="Plugin name" {...field} readOnly disabled className="cursor-not-allowed" />
+											<Input
+												placeholder="Plugin name"
+												{...field}
+												readOnly
+												disabled
+												className="cursor-not-allowed"
+											/>
 										</FormControl>
 										<FormDescription>The name of the plugin</FormDescription>
 										<FormMessage />
@@ -183,18 +257,28 @@ export default function PluginsView(props: Props) {
 								)}
 							/>
 
-							{selectedPlugin.status?.types && selectedPlugin.status.types.length > 0 && (
-								<FormItem>
-									<FormLabel>Types</FormLabel>
-									<FormControl>
-										<div className="flex flex-wrap gap-1">
-											{selectedPlugin.status.types.map((type) => (
-												<Badge key={type} variant="outline" className={cn("h-5 px-2 text-xs font-medium uppercase", getPluginTypeColor(type))}>{type}</Badge>
-											))}
-										</div>
-									</FormControl>
-								</FormItem>
-							)}
+							{selectedPlugin.status?.types &&
+								selectedPlugin.status.types.length > 0 && (
+									<FormItem>
+										<FormLabel>Types</FormLabel>
+										<FormControl>
+											<div className="flex flex-wrap gap-1">
+												{selectedPlugin.status.types.map((type) => (
+													<Badge
+														key={type}
+														variant="outline"
+														className={cn(
+															"h-5 px-2 text-xs font-medium uppercase",
+															getPluginTypeColor(type),
+														)}
+													>
+														{type}
+													</Badge>
+												))}
+											</div>
+										</FormControl>
+									</FormItem>
+								)}
 
 							<FormField
 								control={form.control}
@@ -202,11 +286,16 @@ export default function PluginsView(props: Props) {
 								render={({ field }) => (
 									<FormItem className="flex flex-row items-center justify-between">
 										<div className="space-y-0.5">
-											<FormLabel	>Enabled</FormLabel>
-											<FormDescription>Enable or disable this plugin</FormDescription>
+											<FormLabel>Enabled</FormLabel>
+											<FormDescription>
+												Enable or disable this plugin
+											</FormDescription>
 										</div>
 										<FormControl>
-											<Switch checked={field.value} onCheckedChange={field.onChange} />
+											<Switch
+												checked={field.value}
+												onCheckedChange={field.onChange}
+											/>
 										</FormControl>
 									</FormItem>
 								)}
@@ -219,9 +308,15 @@ export default function PluginsView(props: Props) {
 									<FormItem>
 										<FormLabel>Path</FormLabel>
 										<FormControl>
-											<Input placeholder="Plugin path" {...field} value={field.value || ""} />
+											<Input
+												placeholder="Plugin path"
+												{...field}
+												value={field.value || ""}
+											/>
 										</FormControl>
-										<FormDescription>The file system path to the plugin</FormDescription>
+										<FormDescription>
+											The file system path to the plugin
+										</FormDescription>
 										<FormMessage />
 									</FormItem>
 								)}
@@ -250,6 +345,200 @@ export default function PluginsView(props: Props) {
 									name="config"
 									render={({ field }) => (
 										<FormItem>
+											{selectedPlugin.name === "stt-dictionary" &&
+												(() => {
+													const parsed = parseSttDictionaryConfig(field.value);
+													const replacements = Array.isArray(
+														parsed.replacements,
+													)
+														? parsed.replacements
+														: [];
+													const modelOverrides =
+														parsed.model_overrides &&
+														typeof parsed.model_overrides === "object"
+															? parsed.model_overrides
+															: {};
+
+													const updateDictionaryConfig = (
+														next: SttDictionaryConfig,
+													) => {
+														field.onChange(stringifyConfig(next));
+													};
+
+													return (
+														<div className="mb-4 space-y-4 rounded-md border p-3">
+															<div className="text-sm font-medium">
+																STT Dictionary Editor
+															</div>
+															<div className="grid gap-3 md:grid-cols-2">
+																<div className="flex items-center justify-between rounded-sm border px-3 py-2">
+																	<div>
+																		<div className="text-sm font-medium">
+																			Use Regex
+																		</div>
+																		<div className="text-muted-foreground text-xs">
+																			Validate patterns on save
+																		</div>
+																	</div>
+																	<Switch
+																		checked={Boolean(parsed.use_regex)}
+																		onCheckedChange={(checked) =>
+																			updateDictionaryConfig({
+																				...parsed,
+																				use_regex: checked,
+																			})
+																		}
+																	/>
+																</div>
+																<div className="flex items-center justify-between rounded-sm border px-3 py-2">
+																	<div>
+																		<div className="text-sm font-medium">
+																			Case Sensitive
+																		</div>
+																		<div className="text-muted-foreground text-xs">
+																			Only for non-regex mode
+																		</div>
+																	</div>
+																	<Switch
+																		checked={Boolean(parsed.case_sensitive)}
+																		onCheckedChange={(checked) =>
+																			updateDictionaryConfig({
+																				...parsed,
+																				case_sensitive: checked,
+																			})
+																		}
+																	/>
+																</div>
+															</div>
+
+															<div className="space-y-2">
+																<div className="flex items-center justify-between">
+																	<div className="text-sm font-medium">
+																		Global Replacements
+																	</div>
+																	<Button
+																		type="button"
+																		variant="outline"
+																		size="sm"
+																		onClick={() =>
+																			updateDictionaryConfig({
+																				...parsed,
+																				replacements: [
+																					...replacements,
+																					{ from: "", to: "" },
+																				],
+																			})
+																		}
+																	>
+																		<PlusIcon className="mr-1 h-4 w-4" /> Add
+																	</Button>
+																</div>
+																{replacements.length === 0 ? (
+																	<div className="text-muted-foreground rounded-sm border border-dashed px-3 py-2 text-xs">
+																		No replacements configured.
+																	</div>
+																) : (
+																	replacements.map((rule, idx) => (
+																		<div
+																			key={`replacement-${idx}-${rule.from}-${rule.to}`}
+																			className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
+																		>
+																			<Input
+																				placeholder={
+																					parsed.use_regex
+																						? "from regex"
+																						: "from text"
+																				}
+																				value={rule.from}
+																				onChange={(e) => {
+																					const next = [...replacements];
+																					next[idx] = {
+																						...next[idx],
+																						from: e.target.value,
+																					};
+																					updateDictionaryConfig({
+																						...parsed,
+																						replacements: next,
+																					});
+																				}}
+																			/>
+																			<Input
+																				placeholder="to text"
+																				value={rule.to}
+																				onChange={(e) => {
+																					const next = [...replacements];
+																					next[idx] = {
+																						...next[idx],
+																						to: e.target.value,
+																					};
+																					updateDictionaryConfig({
+																						...parsed,
+																						replacements: next,
+																					});
+																				}}
+																			/>
+																			<Button
+																				type="button"
+																				variant="ghost"
+																				size="icon"
+																				onClick={() => {
+																					const next = replacements.filter(
+																						(_, i) => i !== idx,
+																					);
+																					updateDictionaryConfig({
+																						...parsed,
+																						replacements: next,
+																					});
+																				}}
+																			>
+																				<Trash2Icon className="h-4 w-4" />
+																			</Button>
+																		</div>
+																	))
+																)}
+															</div>
+
+															<div className="space-y-2">
+																<div className="text-sm font-medium">
+																	Per-Model Overrides (JSON)
+																</div>
+																<CodeEditor
+																	className="z-0 w-full rounded-sm border"
+																	minHeight={140}
+																	maxHeight={280}
+																	wrap={true}
+																	code={JSON.stringify(modelOverrides, null, 2)}
+																	lang="json"
+																	onChange={(value) => {
+																		try {
+																			const nextOverrides = JSON.parse(
+																				value || "{}",
+																			);
+																			updateDictionaryConfig({
+																				...parsed,
+																				model_overrides: nextOverrides,
+																			});
+																		} catch {
+																			// keep editing without forcing invalid JSON into main config
+																		}
+																	}}
+																	options={{
+																		scrollBeyondLastLine: false,
+																		lineNumbers: "on",
+																		alwaysConsumeMouseWheel: false,
+																	}}
+																/>
+																<div className="text-muted-foreground text-xs">
+																	Use keys like{" "}
+																	<code>
+																		openai/nvidia/parakeet-tdt-0.6b-v2
+																	</code>{" "}
+																	or model-only form.
+																</div>
+															</div>
+														</div>
+													);
+												})()}
 											<div className="flex items-center justify-between">
 												<FormLabel>Configuration (JSON)</FormLabel>
 												<Button
@@ -285,7 +574,9 @@ export default function PluginsView(props: Props) {
 													/>
 												</div>
 											</FormControl>
-											<FormDescription>Plugin configuration in JSON format</FormDescription>
+											<FormDescription>
+												Plugin configuration in JSON format
+											</FormDescription>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -296,20 +587,28 @@ export default function PluginsView(props: Props) {
 						{selectedPlugin.status?.status !== "active" && (
 							<div className="mt-4">
 								<div className="space-y-4">
-									{selectedPlugin.status?.logs && selectedPlugin.status.logs.length > 0 && (
-										<div className="grid gap-2">
-											<label className="text-sm font-medium">Logs</label>
-											<div className="rounded-md border px-4 py-2 font-mono text-xs">
-												<div className="flex flex-row items-center gap-2">
-													{selectedPlugin.status.logs.map((log, index) => (
-														<div key={index} className={isErrorLog(log) ? "text-red-400" : "text-green-600"}>
-															{log}
-														</div>
-													))}
+									{selectedPlugin.status?.logs &&
+										selectedPlugin.status.logs.length > 0 && (
+											<div className="grid gap-2">
+												<div className="text-sm font-medium">Logs</div>
+												<div className="rounded-md border px-4 py-2 font-mono text-xs">
+													<div className="flex flex-row items-center gap-2">
+														{selectedPlugin.status.logs.map((log, index) => (
+															<div
+																key={`${index}-${log}`}
+																className={
+																	isErrorLog(log)
+																		? "text-red-400"
+																		: "text-green-600"
+																}
+															>
+																{log}
+															</div>
+														))}
+													</div>
 												</div>
 											</div>
-										</div>
-									)}
+										)}
 								</div>
 							</div>
 						)}
@@ -327,10 +626,20 @@ export default function PluginsView(props: Props) {
 							Delete Plugin
 						</Button>
 						<div className="flex gap-2">
-							<Button type="button" variant="outline" onClick={() => form.reset()} disabled={!form.formState.isDirty || !hasUpdatePluginAccess}>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => form.reset()}
+								disabled={!form.formState.isDirty || !hasUpdatePluginAccess}
+							>
 								Reset
 							</Button>
-							<Button type="submit" disabled={isLoading || !form.formState.isDirty || !hasUpdatePluginAccess}>
+							<Button
+								type="submit"
+								disabled={
+									isLoading || !form.formState.isDirty || !hasUpdatePluginAccess
+								}
+							>
 								<SaveIcon className="h-4 w-4" />
 								{isLoading ? "Saving..." : "Save Changes"}
 							</Button>
