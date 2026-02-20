@@ -56,13 +56,13 @@ func (h *WebSocketHandler) getUpgrader() websocket.FastHTTPUpgrader {
 		WriteBufferSize: 1024,
 		CheckOrigin: func(ctx *fasthttp.RequestCtx) bool {
 			origin := string(ctx.Request.Header.Peek("Origin"))
+			host := string(ctx.Request.Header.Peek("Host"))
 			if origin == "" {
 				// If no Origin header, check the Host header for direct connections
-				host := string(ctx.Request.Header.Peek("Host"))
 				return isLocalhost(host)
 			}
 			// Check if origin is allowed (localhost always allowed + configured origins)
-			return IsOriginAllowed(origin, h.allowedOrigins)
+			return IsRequestOriginAllowed(origin, host, h.allowedOrigins)
 		},
 	}
 }

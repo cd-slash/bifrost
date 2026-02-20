@@ -5,6 +5,8 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -108,6 +110,38 @@ func IsOriginAllowed(origin string, allowedOrigins []string) bool {
 	return false
 }
 
+// IsRequestOriginAllowed checks if an origin is allowed for a specific request host.
+// In addition to configured allowed origins, it allows same-host origins so
+// WebSocket/CORS requests from the served UI origin are accepted by default.
+func IsRequestOriginAllowed(origin string, requestHost string, allowedOrigins []string) bool {
+	if IsOriginAllowed(origin, allowedOrigins) {
+		return true
+	}
+
+	originURL, err := url.Parse(origin)
+	if err != nil || originURL.Host == "" {
+		return false
+	}
+
+	originHost, originPort := splitHostPort(originURL.Host)
+	reqHost, reqPort := splitHostPort(requestHost)
+
+	if originHost == "" || reqHost == "" {
+		return false
+	}
+
+	if !strings.EqualFold(originHost, reqHost) {
+		return false
+	}
+
+	// If both sides specify ports, they must match.
+	if originPort != "" && reqPort != "" && originPort != reqPort {
+		return false
+	}
+
+	return true
+}
+
 // isLocalhostOrigin checks if the given origin is a localhost origin
 func isLocalhostOrigin(origin string) bool {
 	return strings.HasPrefix(origin, "http://localhost:") ||
@@ -136,6 +170,14 @@ func matchesWildcardPattern(origin string, pattern string) bool {
 	}
 
 	return re.MatchString(origin)
+}
+
+func splitHostPort(hostport string) (string, string) {
+	host, port, err := net.SplitHostPort(hostport)
+	if err == nil {
+		return strings.Trim(host, "[]"), port
+	}
+	return strings.Trim(hostport, "[]"), ""
 }
 
 // ParseModel parses a model string in the format "provider/model" or "provider/nested/model"

@@ -1,4 +1,9 @@
-import { CreatePluginRequest, Plugin, PluginsResponse, UpdatePluginRequest } from "@/lib/types/plugins";
+import type {
+	CreatePluginRequest,
+	Plugin,
+	PluginsResponse,
+	UpdatePluginRequest,
+} from "@/lib/types/plugins";
 import { baseApi } from "./baseApi";
 
 export const pluginsApi = baseApi.injectEndpoints({
@@ -9,13 +14,13 @@ export const pluginsApi = baseApi.injectEndpoints({
 			providesTags: ["Plugins"],
 			transformResponse: (response: PluginsResponse) => response.plugins || [],
 		}),
-		
+
 		// Get a single plugin
 		getPlugin: builder.query<Plugin, string>({
 			query: (name) => `/plugins/${name}`,
 			providesTags: (result, error, name) => [{ type: "Plugins", id: name }],
 		}),
-		
+
 		// Create new plugin
 		createPlugin: builder.mutation<Plugin, CreatePluginRequest>({
 			query: (data) => ({
@@ -23,45 +28,74 @@ export const pluginsApi = baseApi.injectEndpoints({
 				method: "POST",
 				body: data,
 			}),
-			transformResponse: (response: { message: string; plugin: Plugin }) => response.plugin,
+			transformResponse: (response: { message: string; plugin: Plugin }) =>
+				response.plugin,
 			async onQueryStarted(arg, { dispatch, queryFulfilled }) {
 				try {
 					const { data: newPlugin } = await queryFulfilled;
 					dispatch(
-						pluginsApi.util.updateQueryData("getPlugins", undefined, (draft) => {
-							draft.push(newPlugin);
-						})
+						pluginsApi.util.updateQueryData(
+							"getPlugins",
+							undefined,
+							(draft) => {
+								draft.push(newPlugin);
+							},
+						),
 					);
 					// Also update the individual plugin cache
 					dispatch(
-						pluginsApi.util.updateQueryData("getPlugin", newPlugin.name, () => newPlugin)
+						pluginsApi.util.updateQueryData(
+							"getPlugin",
+							newPlugin.name,
+							() => newPlugin,
+						),
 					);
 				} catch {}
 			},
 		}),
 
 		// Update existing plugin
-		updatePlugin: builder.mutation<Plugin, { name: string; data: UpdatePluginRequest }>({
+		updatePlugin: builder.mutation<
+			Plugin,
+			{ name: string; data: UpdatePluginRequest }
+		>({
 			query: ({ name, data }) => ({
 				url: `/plugins/${name}`,
 				method: "PUT",
 				body: data,
 			}),
-			transformResponse: (response: { message: string; plugin: Plugin }) => response.plugin,
+			invalidatesTags: (result, error, arg) => [
+				"Plugins",
+				{ type: "Plugins", id: arg.name },
+			],
+			transformResponse: (response: { message: string; plugin: Plugin }) =>
+				response.plugin,
 			async onQueryStarted(arg, { dispatch, queryFulfilled }) {
 				try {
 					const { data: updatedPlugin } = await queryFulfilled;
 					dispatch(
-						pluginsApi.util.updateQueryData("getPlugins", undefined, (draft) => {
-							const index = draft.findIndex((p) => p.name === arg.name);
-							if (index !== -1) {
-								draft[index] = updatedPlugin;
-							}
-						})
+						pluginsApi.util.updateQueryData(
+							"getPlugins",
+							undefined,
+							(draft) => {
+								const index = draft.findIndex((p) => p.name === arg.name);
+								if (index !== -1) {
+									draft[index] = {
+										...draft[index],
+										...updatedPlugin,
+										status: draft[index].status,
+									};
+								}
+							},
+						),
 					);
 					// Also update the individual plugin cache
 					dispatch(
-						pluginsApi.util.updateQueryData("getPlugin", arg.name, () => updatedPlugin)
+						pluginsApi.util.updateQueryData("getPlugin", arg.name, (draft) => {
+							if (!draft) return;
+							const existingStatus = draft.status;
+							Object.assign(draft, updatedPlugin, { status: existingStatus });
+						}),
 					);
 				} catch {}
 			},
@@ -77,12 +111,16 @@ export const pluginsApi = baseApi.injectEndpoints({
 				try {
 					await queryFulfilled;
 					dispatch(
-						pluginsApi.util.updateQueryData("getPlugins", undefined, (draft) => {
-							const index = draft.findIndex((p) => p.name === pluginName);
-							if (index !== -1) {
-								draft.splice(index, 1);
-							}
-						})
+						pluginsApi.util.updateQueryData(
+							"getPlugins",
+							undefined,
+							(draft) => {
+								const index = draft.findIndex((p) => p.name === pluginName);
+								if (index !== -1) {
+									draft.splice(index, 1);
+								}
+							},
+						),
 					);
 				} catch {}
 			},

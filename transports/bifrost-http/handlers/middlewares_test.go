@@ -20,6 +20,39 @@ func (m *mockLogger) Fatal(format string, args ...any)                  {}
 func (m *mockLogger) SetLevel(level schemas.LogLevel)                   {}
 func (m *mockLogger) SetOutputType(outputType schemas.LoggerOutputType) {}
 
+func TestIsRequestOriginAllowed_SameHost(t *testing.T) {
+	allowed := IsRequestOriginAllowed(
+		"https://bifrost-dev.banjo-capella.ts.net",
+		"bifrost-dev.banjo-capella.ts.net",
+		[]string{},
+	)
+	if !allowed {
+		t.Fatal("expected same-host origin to be allowed")
+	}
+}
+
+func TestIsRequestOriginAllowed_SameHostWithPort(t *testing.T) {
+	allowed := IsRequestOriginAllowed(
+		"https://bifrost-dev.banjo-capella.ts.net:443",
+		"bifrost-dev.banjo-capella.ts.net:443",
+		[]string{},
+	)
+	if !allowed {
+		t.Fatal("expected same-host origin with port to be allowed")
+	}
+}
+
+func TestIsRequestOriginAllowed_MismatchedHost(t *testing.T) {
+	allowed := IsRequestOriginAllowed(
+		"https://malicious.example",
+		"bifrost-dev.banjo-capella.ts.net",
+		[]string{},
+	)
+	if allowed {
+		t.Fatal("expected mismatched host origin to be rejected")
+	}
+}
+
 // TestCorsMiddleware_LocalhostOrigins tests that localhost origins are always allowed
 func TestCorsMiddleware_LocalhostOrigins(t *testing.T) {
 	config := &lib.Config{
