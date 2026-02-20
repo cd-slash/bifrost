@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { RbacOperation, RbacResource, useRbac } from "@enterprise/lib";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, SaveIcon, Trash2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -104,6 +104,10 @@ export default function PluginsView(props: Props) {
 	const selectedPlugin = useAppSelector((state) => state.plugin.selectedPlugin);
 	const [showConfig, setShowConfig] = useState(false);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+	const replacementKeysRef = useRef<string[]>([]);
+
+	const createReplacementKey = () =>
+		`replacement-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 	const form = useForm<PluginFormValues>({
 		resolver: zodResolver(pluginFormSchema),
@@ -137,6 +141,7 @@ export default function PluginsView(props: Props) {
 				hasConfig,
 			});
 		}
+		replacementKeysRef.current = [];
 	}, [selectedPlugin, form]);
 
 	// Track form dirty state
@@ -420,15 +425,18 @@ export default function PluginsView(props: Props) {
 																		type="button"
 																		variant="outline"
 																		size="sm"
-																		onClick={() =>
+																		onClick={() => {
+																			replacementKeysRef.current.push(
+																				createReplacementKey(),
+																			);
 																			updateDictionaryConfig({
 																				...parsed,
 																				replacements: [
 																					...replacements,
 																					{ from: "", to: "" },
 																				],
-																			})
-																		}
+																			});
+																		}}
 																	>
 																		<PlusIcon className="mr-1 h-4 w-4" /> Add
 																	</Button>
@@ -438,63 +446,88 @@ export default function PluginsView(props: Props) {
 																		No replacements configured.
 																	</div>
 																) : (
-																	replacements.map((rule, idx) => (
-																		<div
-																			key={`replacement-${idx}-${rule.from}-${rule.to}`}
-																			className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
-																		>
-																			<Input
-																				placeholder={
-																					parsed.use_regex
-																						? "from regex"
-																						: "from text"
-																				}
-																				value={rule.from}
-																				onChange={(e) => {
-																					const next = [...replacements];
-																					next[idx] = {
-																						...next[idx],
-																						from: e.target.value,
-																					};
-																					updateDictionaryConfig({
-																						...parsed,
-																						replacements: next,
-																					});
-																				}}
-																			/>
-																			<Input
-																				placeholder="to text"
-																				value={rule.to}
-																				onChange={(e) => {
-																					const next = [...replacements];
-																					next[idx] = {
-																						...next[idx],
-																						to: e.target.value,
-																					};
-																					updateDictionaryConfig({
-																						...parsed,
-																						replacements: next,
-																					});
-																				}}
-																			/>
-																			<Button
-																				type="button"
-																				variant="ghost"
-																				size="icon"
-																				onClick={() => {
-																					const next = replacements.filter(
-																						(_, i) => i !== idx,
-																					);
-																					updateDictionaryConfig({
-																						...parsed,
-																						replacements: next,
-																					});
-																				}}
+																	(() => {
+																		while (
+																			replacementKeysRef.current.length <
+																			replacements.length
+																		) {
+																			replacementKeysRef.current.push(
+																				createReplacementKey(),
+																			);
+																		}
+																		if (
+																			replacementKeysRef.current.length >
+																			replacements.length
+																		) {
+																			replacementKeysRef.current =
+																				replacementKeysRef.current.slice(
+																					0,
+																					replacements.length,
+																				);
+																		}
+
+																		return replacements.map((rule, idx) => (
+																			<div
+																				key={replacementKeysRef.current[idx]}
+																				className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
 																			>
-																				<Trash2Icon className="h-4 w-4" />
-																			</Button>
-																		</div>
-																	))
+																				<Input
+																					placeholder={
+																						parsed.use_regex
+																							? "from regex"
+																							: "from text"
+																					}
+																					value={rule.from}
+																					onChange={(e) => {
+																						const next = [...replacements];
+																						next[idx] = {
+																							...next[idx],
+																							from: e.target.value,
+																						};
+																						updateDictionaryConfig({
+																							...parsed,
+																							replacements: next,
+																						});
+																					}}
+																				/>
+																				<Input
+																					placeholder="to text"
+																					value={rule.to}
+																					onChange={(e) => {
+																						const next = [...replacements];
+																						next[idx] = {
+																							...next[idx],
+																							to: e.target.value,
+																						};
+																						updateDictionaryConfig({
+																							...parsed,
+																							replacements: next,
+																						});
+																					}}
+																				/>
+																				<Button
+																					type="button"
+																					variant="ghost"
+																					size="icon"
+																					onClick={() => {
+																						const next = replacements.filter(
+																							(_, i) => i !== idx,
+																						);
+																						replacementKeysRef.current =
+																							replacementKeysRef.current.filter(
+																								(_, i) => i !== idx,
+																							);
+																						updateDictionaryConfig({
+																							...parsed,
+																							replacements: next,
+																						});
+																					}}
+																				>
+																					<Trash2Icon className="h-4 w-4" />
+																				</Button>
+																			</div>
+																		));
+																	})()
 																)}
 															</div>
 
